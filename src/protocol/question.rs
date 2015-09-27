@@ -4,6 +4,11 @@ use super::packet::Packet;
 use super::packet::Piece;
 use super::domain_name::DomainName;
 
+const TYPE:U16Field = U16Field{index:0};
+const CLASS:U16Field = U16Field{index:2};
+const SIZE:usize = 4;
+
+
 struct QuestionFooter<'d> {
     data: Piece<'d> 
 }
@@ -14,12 +19,8 @@ pub struct Question<'d> {
 }
 
 impl<'d> QuestionFooter<'d> {
-    const TYPE:U16Field = U16Field{index:0};
-    const CLASS:U16Field = U16Field{index:2};
-    const SIZE:usize = 4;
-
-    fn qtype(&self) -> Option<u16> { QuestionFooter::TYPE.get(self.data.data()) }
-    fn qclass(&self) -> Option<u16> { QuestionFooter::CLASS.get(self.data.data()) }
+    fn qtype(&self) -> Option<u16> { TYPE.get(self.data.data()) }
+    fn qclass(&self) -> Option<u16> { CLASS.get(self.data.data()) }
 }
 
 impl<'d> Question<'d> {
@@ -38,7 +39,7 @@ impl<'d> Block<'d, Question<'d>> for Question<'d> {
 
 impl<'d> Block<'d, QuestionFooter<'d>> for QuestionFooter<'d> {
     fn at<'p>(src: &'p mut Packet<'d>, at:usize) -> QuestionFooter<'d> {
-        QuestionFooter { data: src.next_slice(QuestionFooter::SIZE) }
+        QuestionFooter { data: src.next_slice(SIZE) }
     }
 }
 

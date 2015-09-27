@@ -5,6 +5,12 @@ use super::packet::Packet;
 use super::packet::Piece;
 use super::domain_name::DomainName;
 
+const TYPE:U16Field = U16Field{index:0};
+const CLASS:U16Field = U16Field{index:2};
+const TTL:U32Field = U32Field{index:4};
+const LENGTH:U16Field = U16Field{index:8};
+const SIZE:usize = 4;
+
 struct ResourceData<'d> {
     data: Piece<'d>,
 }
@@ -16,16 +22,11 @@ pub struct Resource<'d> {
 }
 
 impl<'d> ResourceData<'d> {
-    const TYPE:U16Field = U16Field{index:0};
-    const CLASS:U16Field = U16Field{index:2};
-    const TTL:U32Field = U32Field{index:4};
-    const LENGTH:U16Field = U16Field{index:8};
-    const SIZE:usize = 4;
 
-    fn rtype(&self) -> Option<u16> { ResourceData::TYPE.get(self.data.data()) }
-    fn rclass(&self) -> Option<u16> { ResourceData::CLASS.get(self.data.data()) }
-    fn ttl(&self) -> Option<u32> { ResourceData::TTL.get(self.data.data()) }
-    fn data_length(&self) -> Option<u16> { ResourceData::LENGTH.get(self.data.data()) }
+    fn rtype(&self) -> Option<u16> { TYPE.get(self.data.data()) }
+    fn rclass(&self) -> Option<u16> { CLASS.get(self.data.data()) }
+    fn ttl(&self) -> Option<u32> { TTL.get(self.data.data()) }
+    fn data_length(&self) -> Option<u16> { LENGTH.get(self.data.data()) }
 }
 
 impl<'d> Resource<'d> {
@@ -43,7 +44,7 @@ impl<'d> Block<'d, Resource<'d>> for Resource<'d> {
 
 impl<'d> Block<'d, ResourceData<'d>> for ResourceData<'d> {
     fn at<'p>(src: &'p mut Packet<'d>, at:usize) -> ResourceData<'d> {
-        ResourceData { data: src.next_slice(ResourceData::SIZE) }
+        ResourceData { data: src.next_slice(SIZE) }
     }
 }
 

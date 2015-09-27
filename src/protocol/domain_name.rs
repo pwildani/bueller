@@ -14,6 +14,10 @@ pub struct DomainName<'d> {
     segments: NameSegments<'d>,
 }
 
+const TAG:u8 = 0b1100_0000u8;
+const SEGMENT:u8 = 0b0000_0000u8;
+const POINTER:u8 = 0b1100_0000u8;
+
 impl<'d> DomainName<'d> {
     fn parse_segments(&mut self, start: usize) {
         let mut level = 64; // Allow at most 64 pointers.
@@ -44,9 +48,6 @@ impl<'d> DomainName<'d> {
 
     fn parse_segment_at<'a>(data: &'a[u8], pos: usize) -> (Option<&'a[u8]>, Option<usize>) {
         // The first two bits on the segment header octet are a type tag.
-        const TAG:u8 = 0b1100_0000u8;
-        const SEGMENT:u8 = 0b0000_0000u8;
-        const POINTER:u8 = 0b1100_0000u8;
 
         match (BitField{index:pos, mask:0xff}.get(data)) {
             // End marker: 0 octet. Valid name.
