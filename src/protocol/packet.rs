@@ -1,5 +1,6 @@
 use std::cmp;
 
+// TODO use bytes::Buf or a friend.
 #[derive(Debug,Copy,Clone)]
 pub struct PacketData<'d> {
     data: &'d [u8],

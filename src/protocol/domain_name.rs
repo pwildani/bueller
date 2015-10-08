@@ -1,3 +1,4 @@
+use std::fmt;
 use super::bits::BitField;
 use super::packet::Block;
 use protocol::packet::Packet;
@@ -104,6 +105,15 @@ impl<'d> Block<'d, DomainName<'d>> for DomainName<'d> {
         return name;
     }
 
+}
+
+impl<'d> fmt::Debug for DomainName<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("DomainName")
+            .field("part count", &self.segments.len())
+            .field("parts", &self.segments)
+            .finish()
+    }
 }
 
 

@@ -1,3 +1,4 @@
+use std::fmt;
 use super::bits::U16Field;
 use super::packet::Block;
 use super::packet::Packet;
@@ -40,6 +41,16 @@ impl<'d> Block<'d, Question<'d>> for Question<'d> {
 impl<'d> Block<'d, QuestionFooter<'d>> for QuestionFooter<'d> {
     fn at<'p>(src: &'p mut Packet<'d>, at:usize) -> QuestionFooter<'d> {
         QuestionFooter { data: src.next_slice(SIZE) }
+    }
+}
+
+impl<'d> fmt::Debug for Question<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Question")
+            .field("name", &self.name())
+            .field("qtype", &self.qtype())
+            .field("qclass", &self.qclass())
+            .finish()
     }
 }
 

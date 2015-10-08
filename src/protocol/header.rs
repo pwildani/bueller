@@ -57,6 +57,11 @@ impl<'d> Header<'d> {
     pub fn is_query(&self) -> bool { self.qr() == Some(false) }
     pub fn is_response(&self) -> bool { self.qr() == Some(true) }
     pub fn is_truncated(&self) -> bool { self.tc() == Some(true) }
+
+    // TODO questions iterator
+    // TODO answers iterator
+    // TODO nameservers iterator
+    // TODO additional records iterator
 }
 
 impl<'d> fmt::Debug for Header<'d> {

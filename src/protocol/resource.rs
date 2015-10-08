@@ -1,3 +1,4 @@
+use std::fmt;
 use super::bits::U16Field;
 use super::bits::U32Field;
 use super::packet::Block;
@@ -45,6 +46,19 @@ impl<'d> Block<'d, Resource<'d>> for Resource<'d> {
 impl<'d> Block<'d, ResourceData<'d>> for ResourceData<'d> {
     fn at<'p>(src: &'p mut Packet<'d>, at:usize) -> ResourceData<'d> {
         ResourceData { data: src.next_slice(SIZE) }
+    }
+}
+
+impl<'d> fmt::Debug for Resource<'d> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Resource")
+            .field("name", &self.name())
+            .field("rtype", &self.footer.rtype())
+            .field("rclass", &self.footer.rclass())
+            .field("ttl", &self.footer.ttl())
+            .field("rdata length", &self.footer.data_length())
+            .field("rdata", &self.data)
+            .finish()
     }
 }
 
