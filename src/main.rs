@@ -2,6 +2,7 @@ extern crate bueller;
 extern crate mio;
 
 use bueller::protocol::Packet;
+use bueller::protocol::Header;
 use bueller::protocol::Question;
 use bueller::protocol::Resource;
 use mio::udp::UdpSocket;
@@ -47,6 +48,22 @@ impl mio::Handler for Recurse {
                         Ok(addr) => {
                             println!("Got a response from {:?}", addr);
                             println!("{:?}", recv_buf);
+                            let mut packet = Packet::new(&recv_buf[..]);
+                            println!("Packet {:?}", packet);
+                            let header = packet.next::<Header>();
+                            println!("Header {:?}", header);
+                            for qdcount in header.qd() {
+                                for q in 0..qdcount {
+                                    let query = packet.next::<Question>();
+                                    println!("Question {}: {:?}", q, query);
+                                }
+                            }
+                            for ancount in header.an() {
+                                for a in 0..ancount {
+                                    let answer = packet.next::<Resource>();
+                                    println!("Answer {}: {:?}", a, answer);
+                                }
+                            }
                             event_loop.shutdown();
                         }
                         Err(e) => {
@@ -69,7 +86,7 @@ fn main() {
     println!("Binding socket...");
     let address = "0.0.0.0:5300".parse().unwrap();
     let listener = UdpSocket::bound(&address).unwrap();
-    event_loop.register(&listener, RESPONSE);
+    event_loop.register(&listener, RESPONSE, mio::EventSet::readable(), mio::PollOpt::level());
 
     println!("Sending query ...");
     let mut buffer = Vec::new();
