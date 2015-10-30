@@ -96,7 +96,7 @@ impl BitField {
     pub fn set<T: MutData + ?Sized>(&self, data: &mut T, value: u8) {
         if let Some(elem) = data.get_mut(self.index) {
             *elem = (*elem & !self.mask) |
-                    ((value as u8 & self.mask) << self.mask.trailing_zeros());
+                    ((value as u8 & (self.mask >> self.mask.trailing_zeros())) << self.mask.trailing_zeros());
         }
     }
 }
@@ -270,4 +270,161 @@ mod tests {
         };
         assert_eq!(None, field.get(view));
     }
+
+
+    #[test]
+    fn u8_write0() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut[u8] = &mut data[..];
+        let field = BitField {
+            index: 0,
+            mask: 0xff,
+        };
+        field.set(view, 0x11);
+        assert_eq!(0x11, view[0]);
+        assert_eq!(0xcd, view[1]);
+    }
+
+    #[test]
+    fn u8_write() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut [u8] = &mut data[..];
+        let field = BitField {
+            index: 1,
+            mask: 0xff,
+        };
+        field.set(view, 0x11);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0x11, view[1]);
+    }
+
+    #[test]
+    fn u4_write() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut [u8] = &mut data[..];
+        let field = BitField {
+            index: 1,
+            mask: 0xf0,
+        };
+        field.set(view, 0x11);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0x1d, view[1]);
+    }
+
+    #[test]
+    fn u1_write0() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut [u8] = &mut data[..];
+        let field = BitField {
+            index: 1,
+            mask: 0x80,
+        };
+        field.set(view, 0xfe);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0x4d, view[1]);
+    }
+
+    #[test]
+    fn u1_write1() {
+        let mut data = [0xab, 0x7d];
+        let view: &mut [u8] = &mut data[..];
+        let field = BitField {
+            index: 1,
+            mask: 0x80,
+        };
+        field.set(view, 0x01);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0xfd, view[1]);
+    }
+
+    #[test]
+    fn bitfield_write_invalid_adddress() {
+        let mut data = [0xab];
+        let view: &mut [u8] = &mut data[..];
+        let field = BitField {
+            index: 1,
+            mask: 0xf0,
+        };
+        field.set(view, 0x01);
+        assert_eq!(0xab, view[0]);
+    }
+
+    #[test]
+    fn u16_write() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU16Field {
+            index: 0,
+        };
+        field.set(view, 0x1122);
+        assert_eq!(0x11, view[0]);
+        assert_eq!(0x22, view[1]);
+    }
+
+    #[test]
+    fn u16_write_unaligned() {
+        let mut data = [0xab, 0xcd, 0xef];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU16Field {
+            index: 1,
+        };
+        field.set(view, 0x1122);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0x11, view[1]);
+        assert_eq!(0x22, view[2]);
+    }
+
+    #[test]
+    fn u16_write_invalid_address() {
+        let mut data = [0xab, 0xcd];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU16Field {
+            index: 1,
+        };
+        field.set(view, 0x1122);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0xcd, view[1]);
+    }
+
+    #[test]
+    fn u32_write() {
+        let mut data = [0xab, 0xcd, 0xef, 0x01];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU32Field {
+            index: 0,
+        };
+        field.set(view, 0xabcdef01);
+        assert_eq!(0xab, view[0]);
+        assert_eq!(0xcd, view[1]);
+        assert_eq!(0xef, view[2]);
+        assert_eq!(0x01, view[3]);
+    }
+
+    #[test]
+    fn u32_write_unaligned() {
+        let mut data = [0x00, 0xab, 0xcd, 0xef, 0x01];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU32Field {
+            index: 1,
+        };
+        field.set(view, 0xabcdef01);
+        assert_eq!(0x00, view[0]);
+        assert_eq!(0xab, view[1]);
+        assert_eq!(0xcd, view[2]);
+        assert_eq!(0xef, view[3]);
+        assert_eq!(0x01, view[4]);
+    }
+
+    #[test]
+    fn u32_write_invalid_address() {
+        let mut data = [0x11, 0x22];
+        let view: &mut [u8] = &mut data[..];
+        let field = BEU16Field {
+            index: 1,
+        };
+        field.set(view, 0xabcdef01);
+        assert_eq!(0x11, view[0]);
+        assert_eq!(0x22, view[1]);
+    }
+
 }
