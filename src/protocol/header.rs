@@ -74,7 +74,7 @@ impl<'d, D: 'd + ?Sized> Header<'d, D> where D: BitData {
 }
 
 impl<'d, D: 'd + ?Sized> MutHeader<'d, D> where D: MutBitData {
-    pub fn at_mut(data: &'d mut D) -> MutHeader<'d, D> {
+    pub fn at(data: &'d mut D) -> MutHeader<'d, D> {
         MutHeader{data: data}
     }
     pub fn set_id(&mut self, val:u16) -> &mut Self {ID.set(self.data, val); self}
@@ -322,5 +322,14 @@ mod tests {
         assert_eq!(None, h.ar());
     }
 
+
+    #[test]
+    fn set_id() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_id(0xabcd);
+        let h = Header::at(data);
+        assert_eq!(Some(0xabcd), h.id());
+
+    }
 }
  

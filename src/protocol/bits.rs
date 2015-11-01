@@ -1,21 +1,21 @@
 use std::ops::{Index, IndexMut, Range};
 
 
-pub trait Data {
+pub trait BitData {
     type Slice: ?Sized + Index<usize,Output=u8>;
 
     fn get(&self, index: usize) -> Option<&u8>;
     fn get_range(&self, index: Range<usize>) -> Option<&Self::Slice>;
 }
 
-pub trait MutData: Data {
+pub trait MutBitData: BitData {
     type SliceMut: ?Sized + IndexMut<usize,Output=u8>;
 
     fn get_mut(&mut self, index: usize) -> Option<&mut u8>;
     fn get_mut_range(&mut self, index: Range<usize>) -> Option<&mut Self::SliceMut>;
 }
 
-impl Data for [u8] {
+impl BitData for [u8] {
     type Slice = [u8];
     #[inline]
     fn get(&self, index: usize) -> Option<&u8> {
@@ -31,7 +31,7 @@ impl Data for [u8] {
     }
 }
 
-impl MutData for [u8] {
+impl MutBitData for [u8] {
     type SliceMut = [u8];
 
     #[inline]
@@ -50,7 +50,7 @@ impl MutData for [u8] {
 
 type U8Slice = [u8];
 
-impl Data for Vec<u8> {
+impl BitData for Vec<u8> {
     type Slice = [u8];
 
     #[inline]
@@ -67,6 +67,23 @@ impl Data for Vec<u8> {
     }
 }
 
+impl MutBitData for Vec<u8> {
+    type SliceMut = [u8];
+
+    #[inline]
+    fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
+        (self as &mut [u8]).get_mut(index)
+    }
+
+    #[inline]
+    fn get_mut_range(&mut self, index: Range<usize>) -> Option<&mut Self::SliceMut> {
+        if index.end > self.len() {
+            return None;
+        }
+        Some(&mut self[index])
+    }
+}
+
 /// Bit field manipulation. Does not yet work across byte boundaries.
 pub struct BitField {
     /// Byte offset from start of data.
@@ -77,7 +94,7 @@ pub struct BitField {
 
 impl BitField {
     #[inline]
-    pub fn get<T: Data + ?Sized>(&self, data: &T) -> Option<u8> {
+    pub fn get<T: BitData + ?Sized>(&self, data: &T) -> Option<u8> {
         if let Some(val) = data.get(self.index) {
             return Some((val & self.mask) >> self.mask.trailing_zeros());
         }
@@ -85,7 +102,7 @@ impl BitField {
     }
 
     #[inline]
-    pub fn nonzero<T: Data + ?Sized>(&self, data: &T) -> Option<bool> {
+    pub fn nonzero<T: BitData + ?Sized>(&self, data: &T) -> Option<bool> {
         if let Some(val) = data.get(self.index) {
             return Some(0 != (val & self.mask));
         }
@@ -93,7 +110,7 @@ impl BitField {
     }
 
     #[inline]
-    pub fn set<T: MutData + ?Sized>(&self, data: &mut T, value: u8) {
+    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u8) {
         if let Some(elem) = data.get_mut(self.index) {
             *elem = (*elem & !self.mask) |
                     ((value as u8 & (self.mask >> self.mask.trailing_zeros())) << self.mask.trailing_zeros());
@@ -107,7 +124,7 @@ pub struct BEU16Field {
 
 impl BEU16Field {
     #[inline]
-    pub fn get<T: Data + ?Sized>(&self, data: &T) -> Option<u16> {
+    pub fn get<T: BitData + ?Sized>(&self, data: &T) -> Option<u16> {
         if let Some(split) = data.get_range(self.index..self.index + 2) {
             return Some(((split[0] as u16) << 8) + (split[1] as u16));
         }
@@ -115,7 +132,7 @@ impl BEU16Field {
     }
 
     #[inline]
-    pub fn set<T: MutData + ?Sized>(&self, data: &mut T, value: u16) {
+    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u16) {
         if let Some(split) = data.get_mut_range(self.index..self.index + 2) {
             split[0] = ((value & 0xff00) >> 8) as u8;
             split[1] = (value & 0x00ff) as u8;
@@ -129,7 +146,7 @@ pub struct BEU32Field {
 
 impl BEU32Field {
     #[inline]
-    pub fn get<T: Data + ?Sized>(&self, data: &T) -> Option<u32> {
+    pub fn get<T: BitData + ?Sized>(&self, data: &T) -> Option<u32> {
         if let Some(split) = data.get_range(self.index..self.index + 4) {
             return Some(((split[0] as u32) << 24) + ((split[1] as u32) << 16) +
                         ((split[2] as u32) << 8) + ((split[3] as u32) << 0));
@@ -138,7 +155,7 @@ impl BEU32Field {
     }
 
     #[inline]
-    pub fn set<T: MutData + ?Sized>(&self, data: &mut T, value: u32) {
+    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u32) {
         // TODO unsafe impl, once I can tell what the native endianness is.
         if let Some(split) = data.get_mut_range(self.index..self.index + 4) {
             split[0] = ((value & 0xff000000) >> 24) as u8;
