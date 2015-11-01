@@ -322,14 +322,99 @@ mod tests {
         assert_eq!(None, h.ar());
     }
 
-
     #[test]
     fn set_id() {
-        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0];
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
         MutHeader::at(data).set_id(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.id());
+    }
 
+    #[test]
+    fn set_qr() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_qr(true);
+        let h = Header::at(data);
+        assert_eq!(Some(true), h.qr());
+    }
+
+    #[test]
+    fn set_op() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_op(0xff);
+        let h = Header::at(data);
+        assert_eq!(Some(0xf), h.op());
+    }
+
+    #[test]
+    fn set_aa() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_aa(true);
+        let h = Header::at(data);
+        assert_eq!(Some(true), h.aa());
+    }
+
+    #[test]
+    fn set_tc() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_tc(true);
+        let h = Header::at(data);
+        assert_eq!(Some(true), h.tc());
+    }
+
+    #[test]
+    fn set_rd() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_rd(true);
+        let h = Header::at(data);
+        assert_eq!(Some(true), h.rd());
+    }
+
+    #[test]
+    fn set_ra() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_ra(true);
+        let h = Header::at(data);
+        assert_eq!(Some(true), h.ra());
+    }
+
+    #[test]
+    fn set_rc() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_rc(0xff);
+        let h = Header::at(data);
+        assert_eq!(Some(0xf), h.rc());
+    }
+
+    #[test]
+    fn set_qd() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_qd(0xabcd);
+        let h = Header::at(data);
+        assert_eq!(Some(0xabcd), h.qd());
+    }
+
+    #[test]
+    fn set_an() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_an(0xabcd);
+        let h = Header::at(data);
+        assert_eq!(Some(0xabcd), h.an());
+    }
+
+    #[test]
+    fn set_ns() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_ns(0xabcd);
+        let h = Header::at(data);
+        assert_eq!(Some(0xabcd), h.ns());
+    }
+
+    #[test]
+    fn set_ar() {
+        let data: &mut Vec<u8> = &mut vec![0,0,0,0,0,0,0,0,0,0,0,0];
+        MutHeader::at(data).set_ar(0xabcd);
+        let h = Header::at(data);
+        assert_eq!(Some(0xabcd), h.ar());
     }
 }
- 
