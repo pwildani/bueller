@@ -9,6 +9,7 @@ use std::ops::Range;
 
 // TODO generalize segment storage over BitData::Slice.
 
+#[derive(Clone)]
 pub struct DomainName<'d> {
     /// The next byte offset in the message after this name.
     end: usize,
@@ -21,7 +22,7 @@ const POINTER:u8 = 0b1100_0000u8;
 
 
 impl<'d> DomainName<'d> {
-    fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> DomainName<'d>
+    pub fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> Option<DomainName<'d>>
         where D: BitData<Slice=[u8]> {
         // Consume the inline portion of the name from the message.
         let mut end = at;
@@ -38,11 +39,11 @@ impl<'d> DomainName<'d> {
             segments: Vec::with_capacity(6),
         };
         name.parse_segments(message, at);
-        return name;
+        return Some(name);
     }
 
     fn parse_segments<D: ?Sized + BitData>(&mut self, message: &'d D, start: usize) 
-    where D: BitData<Slice=[u8]> {
+        where D: BitData<Slice=[u8]> {
         let mut level = 64; // Allow at most 64 pointers. (RFC: unbounded)
         let mut parts = 64; // Allow at most 64 name parts.
         let mut pos = start;
@@ -70,7 +71,7 @@ impl<'d> DomainName<'d> {
     }
 
     fn parse_segment_at<D: ?Sized + BitData>(message: &'d D, pos: usize) -> (Option<&'d [u8]>, Option<usize>) 
-    where D: BitData<Slice=[u8]> {
+        where D: BitData<Slice=[u8]> {
         // The first two bits on the segment header octet are a type tag.
         // TODO check that this produces reasonable assembly.
         match (BitField{index:pos, mask:0xff}.get(message)) {
@@ -101,7 +102,8 @@ impl<'d> DomainName<'d> {
 
     pub fn valid(&self) -> bool {
         // Ends in a root token.
-        return 0 == self.segments[self.segments.len() - 1].len();
+        return self.segments.len() > 0 &&
+            0 == self.segments[self.segments.len() - 1].len();
     }
 
     pub fn iter<'a>(&'a self) -> slice::Iter<&'a [u8]> {
@@ -130,79 +132,88 @@ mod test {
     #[test]
     fn root() {
         let data = &[0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(1, v.len());
         assert_eq!(0, v[0].len());
+        assert!(name.valid());
     }
 
     #[test]
     fn doubleroot() {
         let data = &[0, 0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(1, v.len());
         assert_eq!(0, v[0].len());
+        assert!(name.valid());
 
-        let name2 = DomainName::from_message(data, name.end_offset());
+        let name2 = DomainName::from_message(data, name.end_offset()).unwrap();
         let v2 = Vec::from_iter(name2.iter());
         assert_eq!(1, v2.len());
         assert_eq!(0, v2[0].len());
+        assert!(name2.valid());
     }
 
     #[test]
     fn after_root() {
         let data = &[0, 1, 'x' as u8, 0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(1, v.len());
         assert_eq!(0, v[0].len());
+        assert!(name.valid());
 
-        let name2 = DomainName::from_message(data, name.end_offset());
+        let name2 = DomainName::from_message(data, name.end_offset()).unwrap();
         let v2 = Vec::from_iter(name2.iter());
         assert_eq!(2, v2.len());
         assert_eq!(&['x' as u8], v2[0]);
         assert_eq!(0, v2[1].len());
+        assert!(name2.valid());
     }
 
 
     #[test]
     fn only_tld() {
         let data = &[3, 'c' as u8, 'o' as u8, 'm' as u8, 0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(2, v.len());
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v[0]);
         assert_eq!(0, v[1].len());
+        assert!(name.valid());
     }
 
     #[test]
     fn two_parts() {
         let data = &[1,'x' as u8, 3, 'c' as u8, 'o' as u8, 'm' as u8, 0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(3, v.len());
         assert_eq!(&['x' as u8], v[0]);
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v[1]);
         assert_eq!(0, v[2].len());
+        assert!(name.valid());
     }
 
     #[test]
     fn initial_pointer() {
         let data = &[0xc0, 0x04, 1, 'x' as u8, 3, 'c' as u8, 'o' as u8, 'm' as u8, 0][..];
 
-        let name1 = DomainName::from_message(data, 0);
+        let name1 = DomainName::from_message(data, 0).unwrap();
         let v1 = Vec::from_iter(name1.iter());
         assert_eq!(2, v1.len());
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v1[0]);
         assert_eq!(0, v1[1].len());
+        assert!(name1.valid());
 
-        let name2 = DomainName::from_message(data, name1.end_offset());
+        let name2 = DomainName::from_message(data, name1.end_offset()).unwrap();
         let v2 = Vec::from_iter(name2.iter());
         assert_eq!(3, v2.len());
         assert_eq!(&['x' as u8], v2[0]);
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v2[1]);
         assert_eq!(0, v2[2].len());
+        assert!(name2.valid());
     }
 
     #[test]
@@ -214,35 +225,47 @@ mod test {
             3, 'c' as u8, 'o' as u8, 'm' as u8,
             0][..];
 
-        let name1 = DomainName::from_message(data, 0);
+        let name1 = DomainName::from_message(data, 0).unwrap();
         let v1 = Vec::from_iter(name1.iter());
         assert_eq!(3, v1.len());
         assert_eq!(&['y' as u8], v1[0]);
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v1[1]);
         assert_eq!(0, v1[2].len());
+        assert!(name1.valid());
 
-        let name2 = DomainName::from_message(data, name1.end_offset());
+        let name2 = DomainName::from_message(data, name1.end_offset()).unwrap();
         let v2 = Vec::from_iter(name2.iter());
         assert_eq!(3, v2.len());
         assert_eq!(&['x' as u8], v2[0]);
         assert_eq!(&['c' as u8, 'o' as u8, 'm' as u8], v2[1]);
         assert_eq!(0, v2[2].len());
+        assert!(name2.valid());
     }
 
+    #[test]
+    fn invalid_pointer() {
+        let data = &[0xc0, 5][..];
+        let name = DomainName::from_message(data, 0).unwrap();
+        let v = Vec::from_iter(name.iter());
+        assert_eq!(0, v.len());
+        assert!(!name.valid());
+    }
 
     #[test]
     fn pointer_recursion_limit() {
         let data = &[ 0xc0, 0, 1, 'x' as u8, 0 ][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(0, v.len());
+        assert!(!name.valid());
     }
 
     #[test]
     fn name_count_limit() {
         let data = &[ 1, 'x' as u8, 1, 'y' as u8, 0xc0, 0][..];
-        let name = DomainName::from_message(data, 0);
+        let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(64, v.len());
+        assert!(!name.valid());
     }
 }

@@ -1,27 +1,28 @@
 use std::fmt;
-use super::bits::U16Field;
-use super::packet::Block;
-use super::packet::Packet;
-use super::packet::Piece;
+use super::bits::BEU16Field;
+use super::bits::BitData;
 use super::domain_name::DomainName;
+use std::ops::Range;
 
-const TYPE:U16Field = U16Field{index:0};
-const CLASS:U16Field = U16Field{index:2};
+const TYPE:BEU16Field = BEU16Field{index:0};
+const CLASS:BEU16Field = BEU16Field{index:2};
 const SIZE:usize = 4;
 
 
+#[derive(Clone)]
 struct QuestionFooter<'d> {
-    data: Piece<'d> 
+    data: &'d[u8]
 }
 
+#[derive(Clone)]
 pub struct Question<'d> {
     name: DomainName<'d>,
     footer: QuestionFooter<'d>,
 }
 
 impl<'d> QuestionFooter<'d> {
-    fn qtype(&self) -> Option<u16> { TYPE.get(self.data.data()) }
-    fn qclass(&self) -> Option<u16> { CLASS.get(self.data.data()) }
+    fn qtype(&self) -> Option<u16> { TYPE.get(self.data) }
+    fn qclass(&self) -> Option<u16> { CLASS.get(self.data) }
 }
 
 impl<'d> Question<'d> {
@@ -30,17 +31,20 @@ impl<'d> Question<'d> {
     pub fn qclass(&self) -> Option<u16> { self.footer.qclass() }
 }
 
-impl<'d> Block<'d, Question<'d>> for Question<'d> {
-    fn at(src: &mut Packet<'d>, at:usize) -> Question<'d> {
-        let name = src.next::<DomainName<'d>>();
-        let footer = src.next::<QuestionFooter<'d>>();
-        Question { name: name, footer: footer }
-    }
-}
-
-impl<'d> Block<'d, QuestionFooter<'d>> for QuestionFooter<'d> {
-    fn at<'p>(src: &'p mut Packet<'d>, at:usize) -> QuestionFooter<'d> {
-        QuestionFooter { data: src.next_slice(SIZE) }
+impl<'d> Question<'d> {
+    fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> Option<Question<'d>>
+    // Constrained for DomainName
+    where D:BitData<Slice=[u8]> {
+        if let Some(name) = DomainName::from_message(message, at) {
+            let name = name;
+            if let Some(footer_data) = message.get_range(Range{
+                start:name.end_offset(),
+                end:name.end_offset() + SIZE}) {
+                    let footer = QuestionFooter{data: footer_data};
+                    return Some(Question { name: name, footer: footer });
+                }
+        }
+        None
     }
 }
 
@@ -57,24 +61,20 @@ impl<'d> fmt::Debug for Question<'d> {
 
 #[cfg(test)]
 mod test {
-    use protocol::packet::Packet;
-    use super::Question;
+    use super::*;
 
     #[test]
     fn question() {
-        let data = &[0, 0x1, 0x2, 0x3, 0x4];
-        let mut p = Packet::new(data);
-        let q = p.next::<Question>();
+        let data = &[0, 0x1, 0x2, 0x3, 0x4][..];
+        let q = Question::from_message(data, 0).unwrap();
         assert_eq!(Some(0x0102u16), q.qtype());
         assert_eq!(Some(0x0304u16), q.qclass());
     }
     
     #[test]
     fn question_missing_footer() {
-        let data = &[0];
-        let mut p = Packet::new(data);
-        let q = p.next::<Question>();
-        assert_eq!(None, q.qtype());
-        assert_eq!(None, q.qclass());
+        let data = &[0][..];
+        let q = Question::from_message(data, 0);
+        assert!(q.is_none());
     }
 }
