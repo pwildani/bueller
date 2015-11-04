@@ -1,7 +1,6 @@
 extern crate bueller;
 extern crate mio;
 
-use bueller::protocol::Packet;
 use bueller::protocol::Header;
 use bueller::protocol::Question;
 use bueller::protocol::Resource;
@@ -46,22 +45,26 @@ impl mio::Handler for Recurse {
                     let mut recv_buf = Vec::with_capacity(1024);
                     match self.server.recv_from(&mut recv_buf) {
                         Ok(addr) => {
+                            let msg = &recv_buf[..];
                             println!("Got a response from {:?}", addr);
                             println!("{:?}", recv_buf);
-                            let mut packet = Packet::new(&recv_buf[..]);
-                            println!("Packet {:?}", packet);
-                            let header = packet.next::<Header>();
-                            println!("Header {:?}", header);
+                            let header = Header::at(msg);
+                            println!("Header {:?}", &header);
+                            let mut next = header.end_offset();
                             for qdcount in header.qd() {
                                 for q in 0..qdcount {
-                                    let query = packet.next::<Question>();
-                                    println!("Question {}: {:?}", q, query);
+                                    if let Some(query) = Question::from_message(msg, next) {
+                                        next = query.end_offset();
+                                        println!("Question {}: {:?}", q, &query);
+                                    }
                                 }
                             }
                             for ancount in header.an() {
                                 for a in 0..ancount {
-                                    let answer = packet.next::<Resource>();
-                                    println!("Answer {}: {:?}", a, answer);
+                                    if let Some(answer) = Resource::from_message(msg, next) {
+                                        next = answer.end_offset();
+                                        println!("Answer {}: {:?}", a, &answer);
+                                    }
                                 }
                             }
                             event_loop.shutdown();

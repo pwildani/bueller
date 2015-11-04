@@ -6,6 +6,7 @@ pub trait BitData {
 
     fn get(&self, index: usize) -> Option<&u8>;
     fn get_range(&self, index: Range<usize>) -> Option<&Self::Slice>;
+    fn len(&self) -> usize;
 }
 
 pub trait MutBitData: BitData {
@@ -28,6 +29,11 @@ impl BitData for [u8] {
             return None;
         }
         Some(&self[index])
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        (self as &[u8]).len()
     }
 }
 
@@ -64,6 +70,11 @@ impl BitData for Vec<u8> {
             return None;
         }
         Some(&self[index])
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        (self as &[u8]).len()
     }
 }
 

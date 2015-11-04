@@ -4,4 +4,7 @@ version = "0.0.0"
 authors = ["Peter Wildani <pabw00@gmail.com>"]
 
 [dependencies]
-mio = "0.4.1"
+#mio = "0.4.1"
+[dependencies.mio]
+git = "https://github.com/carllerche/mio/"
+rev = "15b05993bd0761ddf7a1a22396d545908dd3a0a3"

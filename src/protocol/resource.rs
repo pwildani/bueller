@@ -22,10 +22,13 @@ impl<'d> Resource<'d> {
         if let Some(len) = self.data_length() {
             return Some(Range {
                 start:self.name.end_offset() + SIZE,
-                end: self.name.end_offset() + SIZE + len as usize
+                end: self.end_offset(),
             });
         }
         None
+    }
+    pub fn end_offset(&self) -> usize {
+        self.name.end_offset() + SIZE + self.data_length().unwrap_or(0) as usize
     }
 
     pub fn payload<D:?Sized + BitData>(&self, message: &'d D) -> Option<&'d <D as BitData>::Slice> {
@@ -42,7 +45,7 @@ impl<'d> Resource<'d> {
 }
 
 impl<'d> Resource<'d> {
-    fn from_message<D:'d + ?Sized + BitData<Slice=[u8]>>(message: &'d D, at:usize) -> Option<Resource<'d>> {
+    pub fn from_message<D:'d + ?Sized + BitData<Slice=[u8]>>(message: &'d D, at:usize) -> Option<Resource<'d>> {
         if let Some(name) = DomainName::from_message(message, at) {
             if let Some(footer) = message.get_range(Range{start:name.end_offset(), end:name.end_offset() + SIZE}) {
                 return Some(Resource { name: name, footer: footer })

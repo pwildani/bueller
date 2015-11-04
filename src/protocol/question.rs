@@ -9,42 +9,32 @@ const CLASS:BEU16Field = BEU16Field{index:2};
 const SIZE:usize = 4;
 
 
-#[derive(Clone)]
-struct QuestionFooter<'d> {
-    data: &'d[u8]
-}
 
 #[derive(Clone)]
 pub struct Question<'d> {
     name: DomainName<'d>,
-    footer: QuestionFooter<'d>,
-}
-
-impl<'d> QuestionFooter<'d> {
-    fn qtype(&self) -> Option<u16> { TYPE.get(self.data) }
-    fn qclass(&self) -> Option<u16> { CLASS.get(self.data) }
+    footer: &'d[u8]
 }
 
 impl<'d> Question<'d> {
     pub fn name<'a>(&'a self) -> Option<&'a DomainName<'d>> { Some(&self.name) }
-    pub fn qtype(&self) -> Option<u16> { self.footer.qtype() }
-    pub fn qclass(&self) -> Option<u16> { self.footer.qclass() }
-}
-
-impl<'d> Question<'d> {
-    fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> Option<Question<'d>>
-    // Constrained for DomainName
-    where D:BitData<Slice=[u8]> {
+    pub fn qtype(&self) -> Option<u16> { TYPE.get(self.footer) }
+    pub fn qclass(&self) -> Option<u16> { CLASS.get(self.footer) }
+    pub fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> Option<Question<'d>>
+        // Constrained for DomainName
+        where D:BitData<Slice=[u8]> {
         if let Some(name) = DomainName::from_message(message, at) {
-            let name = name;
-            if let Some(footer_data) = message.get_range(Range{
+            if let Some(footer) = message.get_range(Range{
                 start:name.end_offset(),
                 end:name.end_offset() + SIZE}) {
-                    let footer = QuestionFooter{data: footer_data};
                     return Some(Question { name: name, footer: footer });
                 }
         }
         None
+    }
+
+    pub fn end_offset(&self) -> usize {
+        self.name.end_offset() + SIZE
     }
 }
 

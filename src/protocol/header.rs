@@ -71,6 +71,10 @@ impl<'d, D: 'd + ?Sized> Header<'d, D> where D: BitData {
     // TODO answers iterator
     // TODO nameservers iterator
     // TODO additional records iterator
+
+    pub fn end_offset(&self) -> usize {
+        SIZE
+    }
 }
 
 impl<'d, D: 'd + ?Sized> MutHeader<'d, D> where D: MutBitData {
@@ -91,7 +95,7 @@ impl<'d, D: 'd + ?Sized> MutHeader<'d, D> where D: MutBitData {
     pub fn set_ar(&mut self, val:u16) -> &mut Self {AR.set(self.data, val); self}
 }
 
-impl<'d, D: 'd> fmt::Debug for Header<'d, D> where D: BitData {
+impl<'d, D: 'd + ?Sized> fmt::Debug for Header<'d, D> where D: BitData {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Header")
             .field("id", &self.id())
