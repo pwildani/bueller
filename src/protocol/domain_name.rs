@@ -16,25 +16,34 @@ pub struct DomainName<'d> {
     segments: Vec<&'d [u8]>,
 }
 
-const TAG:u8 = 0b1100_0000u8;
-const SEGMENT:u8 = 0b0000_0000u8;
-const POINTER:u8 = 0b1100_0000u8;
+const TAG: u8 = 0b1100_0000u8;
+const SEGMENT: u8 = 0b0000_0000u8;
+const POINTER: u8 = 0b1100_0000u8;
 
 
 impl<'d> DomainName<'d> {
-    pub fn from_message<D: ?Sized + BitData>(message: &'d D, at:usize) -> Option<DomainName<'d>>
-        where D: BitData<Slice=[u8]> {
+    pub fn from_message<D: ?Sized + BitData>(message: &'d D, at: usize) -> Option<DomainName<'d>>
+        where D: BitData<Slice = [u8]>
+    {
         // Consume the inline portion of the name from the message.
         let mut end = at;
         loop {
-          match DomainName::parse_segment_at(message, end)  {
-              (Some(_), Some(next)) => { end = next; },
-              (Some(_), None) => { end += 1; break; }, // Root: 1 octet
-              (None, Some(_))=> { end += 2; break; }, // Pointer: 2 octets
-              _ => break,
-          }
+            match DomainName::parse_segment_at(message, end) {
+                (Some(_), Some(next)) => {
+                    end = next;
+                }
+                (Some(_), None) => {
+                    end += 1;
+                    break;
+                } // Root: 1 octet
+                (None, Some(_)) => {
+                    end += 2;
+                    break;
+                } // Pointer: 2 octets
+                _ => break,
+            }
         }
-        let mut name = DomainName{
+        let mut name = DomainName {
             end: end,
             segments: Vec::with_capacity(6),
         };
@@ -42,83 +51,104 @@ impl<'d> DomainName<'d> {
         return Some(name);
     }
 
-    fn parse_segments<D: ?Sized + BitData>(&mut self, message: &'d D, start: usize) 
-        where D: BitData<Slice=[u8]> {
+    fn parse_segments<D: ?Sized + BitData>(&mut self, message: &'d D, start: usize)
+        where D: BitData<Slice = [u8]>
+    {
         let mut level = 64; // Allow at most 64 pointers. (RFC: unbounded)
         let mut parts = 64; // Allow at most 64 name parts.
         let mut pos = start;
         while level > 0 && parts > 0 {
-          match DomainName::parse_segment_at(message, pos)  {
-              (Some(piece), Some(next)) => {
-                  // Normal name part.
-                  self.segments.push(piece);
-                  parts -= 1;
-                  pos = next;
-              },
-              (Some(piece), None) => {
-                  // Root found. No more name parts.
-                  self.segments.push(piece);
-                  break
-              },
-              (None, Some(next)) => {
-                  // Pointer. Resume at some random other point in the message.
-                  level -= 1;
-                  pos = next;
-              }
-              (None, None) => break, // Invalid segment.
-          }
+            match DomainName::parse_segment_at(message, pos) {
+                (Some(piece), Some(next)) => {
+                    // Normal name part.
+                    self.segments.push(piece);
+                    parts -= 1;
+                    pos = next;
+                }
+                (Some(piece), None) => {
+                    // Root found. No more name parts.
+                    self.segments.push(piece);
+                    break;
+                }
+                (None, Some(next)) => {
+                    // Pointer. Resume at some random other point in the message.
+                    level -= 1;
+                    pos = next;
+                }
+                (None, None) => break, // Invalid segment.
+            }
         }
     }
 
-    fn parse_segment_at<D: ?Sized + BitData>(message: &'d D, pos: usize) -> (Option<&'d [u8]>, Option<usize>) 
-        where D: BitData<Slice=[u8]> {
+    fn parse_segment_at<D: ?Sized + BitData>(message: &'d D,
+                                             pos: usize)
+                                             -> (Option<&'d [u8]>, Option<usize>)
+        where D: BitData<Slice = [u8]>
+    {
         // The first two bits on the segment header octet are a type tag.
         // TODO check that this produces reasonable assembly.
-        match (BitField{index:pos, mask:0xff}.get(message)) {
+        match (BitField {
+                   index: pos,
+                   mask: 0xff,
+               }
+               .get(message)) {
             // End marker: 0 octet. Valid name.
-            Some(0) => return (message.get_range(Range{start:pos, end:pos}), None),
+            Some(0) => return (message.get_range(Range {
+                start: pos,
+                end: pos,
+            }),
+                               None),
             Some(segment) if SEGMENT == TAG & segment => {
                 // The next 6 bits are the size of this segment.
                 let len = (segment & !TAG) as usize;
                 let start = pos + 1;
                 let end = start + len;
-                return (message.get_range(Range{start:start, end:end}), Some(end));
-            },
+                return (message.get_range(Range {
+                    start: start,
+                    end: end,
+                }),
+                        Some(end));
+            }
             Some(pointer) if POINTER == TAG & pointer => {
                 // Jump to the pointed-to byte in the message.
                 // The next 14 bits are the offset from the beginning of the message.
                 let high = pointer & !TAG;
-                let ptr = match (BitField{index:pos+1,mask:0xff}.get(message)) {
+                let ptr = match (BitField {
+                                     index: pos + 1,
+                                     mask: 0xff,
+                                 }
+                                 .get(message)) {
                     Some(low) => Some(((high as usize) << 8) + (low as usize)),
                     None => None,
                 };
                 return (None, ptr);
-            },
+            }
 
             // Unknown tag or pos is outside the message. Invalid message.
-            _ => return (None, None)
+            _ => return (None, None),
         }
     }
 
     pub fn valid(&self) -> bool {
         // Ends in a root token.
-        return self.segments.len() > 0 &&
-            0 == self.segments[self.segments.len() - 1].len();
+        return self.segments.len() > 0 && 0 == self.segments[self.segments.len() - 1].len();
     }
 
     pub fn iter<'a>(&'a self) -> slice::Iter<&'a [u8]> {
         self.segments.iter()
     }
 
-    pub fn end_offset(&self) -> usize { self.end }
+    pub fn end_offset(&self) -> usize {
+        self.end
+    }
 }
 
 impl<'d> fmt::Debug for DomainName<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("DomainName")
-            .field("part count", &self.segments.len())
-            .field("parts", &self.segments)
-            .finish()
+           .field("part count", &self.segments.len())
+           .field("parts", &self.segments)
+           .finish()
     }
 }
 
@@ -186,7 +216,7 @@ mod test {
 
     #[test]
     fn two_parts() {
-        let data = &[1,'x' as u8, 3, 'c' as u8, 'o' as u8, 'm' as u8, 0][..];
+        let data = &[1, 'x' as u8, 3, 'c' as u8, 'o' as u8, 'm' as u8, 0][..];
         let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(3, v.len());
@@ -218,12 +248,8 @@ mod test {
 
     #[test]
     fn trailing_pointer() {
-        let data = &[
-            1, 'y' as u8,
-            0xc0, 0x06,
-            1, 'x' as u8,
-            3, 'c' as u8, 'o' as u8, 'm' as u8,
-            0][..];
+        let data = &[1, 'y' as u8, 0xc0, 0x06, 1, 'x' as u8, 3, 'c' as u8, 'o' as u8, 'm' as u8,
+                     0][..];
 
         let name1 = DomainName::from_message(data, 0).unwrap();
         let v1 = Vec::from_iter(name1.iter());
@@ -253,7 +279,7 @@ mod test {
 
     #[test]
     fn pointer_recursion_limit() {
-        let data = &[ 0xc0, 0, 1, 'x' as u8, 0 ][..];
+        let data = &[0xc0, 0, 1, 'x' as u8, 0][..];
         let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(0, v.len());
@@ -262,7 +288,7 @@ mod test {
 
     #[test]
     fn name_count_limit() {
-        let data = &[ 1, 'x' as u8, 1, 'y' as u8, 0xc0, 0][..];
+        let data = &[1, 'x' as u8, 1, 'y' as u8, 0xc0, 0][..];
         let name = DomainName::from_message(data, 0).unwrap();
         let v = Vec::from_iter(name.iter());
         assert_eq!(64, v.len());

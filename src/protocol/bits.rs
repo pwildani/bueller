@@ -124,7 +124,8 @@ impl BitField {
     pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u8) {
         if let Some(elem) = data.get_mut(self.index) {
             *elem = (*elem & !self.mask) |
-                    ((value as u8 & (self.mask >> self.mask.trailing_zeros())) << self.mask.trailing_zeros());
+                    ((value as u8 & (self.mask >> self.mask.trailing_zeros())) <<
+                     self.mask.trailing_zeros());
         }
     }
 }
@@ -160,7 +161,8 @@ impl BEU32Field {
     pub fn get<T: BitData + ?Sized>(&self, data: &T) -> Option<u32> {
         if let Some(split) = data.get_range(self.index..self.index + 4) {
             return Some(((split[0] as u32) << 24) + ((split[1] as u32) << 16) +
-                        ((split[2] as u32) << 8) + ((split[3] as u32) << 0));
+                        ((split[2] as u32) << 8) +
+                        ((split[3] as u32) << 0));
         }
         None
     }
@@ -243,9 +245,7 @@ mod tests {
     fn u16_extract() {
         let data = [0xab, 0xcd];
         let view: &[u8] = &data[..];
-        let field = BEU16Field {
-            index: 0,
-        };
+        let field = BEU16Field { index: 0 };
         assert_eq!(Some(0xabcd), field.get(view));
     }
 
@@ -253,9 +253,7 @@ mod tests {
     fn u16_unaligned() {
         let data = [0xab, 0xcd, 0xef];
         let view: &[u8] = &data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         assert_eq!(Some(0xcdef), field.get(view));
     }
 
@@ -263,9 +261,7 @@ mod tests {
     fn u16_invalid_address() {
         let data = [0xab, 0xcd];
         let view: &[u8] = &data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         assert_eq!(None, field.get(view));
     }
 
@@ -273,9 +269,7 @@ mod tests {
     fn u32_extract() {
         let data = [0xab, 0xcd, 0xef, 0x01];
         let view: &[u8] = &data[..];
-        let field = BEU32Field {
-            index: 0,
-        };
+        let field = BEU32Field { index: 0 };
         assert_eq!(Some(0xabcdef01), field.get(view));
     }
 
@@ -283,9 +277,7 @@ mod tests {
     fn u32_unaligned() {
         let data = [0x00, 0xab, 0xcd, 0xef, 0x01];
         let view: &[u8] = &data[..];
-        let field = BEU32Field {
-            index: 1,
-        };
+        let field = BEU32Field { index: 1 };
         assert_eq!(Some(0xabcdef01), field.get(view));
     }
 
@@ -293,9 +285,7 @@ mod tests {
     fn u32_invalid_address() {
         let data = [0xab, 0xcd];
         let view: &[u8] = &data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         assert_eq!(None, field.get(view));
     }
 
@@ -303,7 +293,7 @@ mod tests {
     #[test]
     fn u8_write0() {
         let mut data = [0xab, 0xcd];
-        let view: &mut[u8] = &mut data[..];
+        let view: &mut [u8] = &mut data[..];
         let field = BitField {
             index: 0,
             mask: 0xff,
@@ -381,9 +371,7 @@ mod tests {
     fn u16_write() {
         let mut data = [0xab, 0xcd];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU16Field {
-            index: 0,
-        };
+        let field = BEU16Field { index: 0 };
         field.set(view, 0x1122);
         assert_eq!(0x11, view[0]);
         assert_eq!(0x22, view[1]);
@@ -393,9 +381,7 @@ mod tests {
     fn u16_write_unaligned() {
         let mut data = [0xab, 0xcd, 0xef];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         field.set(view, 0x1122);
         assert_eq!(0xab, view[0]);
         assert_eq!(0x11, view[1]);
@@ -406,9 +392,7 @@ mod tests {
     fn u16_write_invalid_address() {
         let mut data = [0xab, 0xcd];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         field.set(view, 0x1122);
         assert_eq!(0xab, view[0]);
         assert_eq!(0xcd, view[1]);
@@ -418,9 +402,7 @@ mod tests {
     fn u32_write() {
         let mut data = [0xab, 0xcd, 0xef, 0x01];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU32Field {
-            index: 0,
-        };
+        let field = BEU32Field { index: 0 };
         field.set(view, 0xabcdef01);
         assert_eq!(0xab, view[0]);
         assert_eq!(0xcd, view[1]);
@@ -432,9 +414,7 @@ mod tests {
     fn u32_write_unaligned() {
         let mut data = [0x00, 0xab, 0xcd, 0xef, 0x01];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU32Field {
-            index: 1,
-        };
+        let field = BEU32Field { index: 1 };
         field.set(view, 0xabcdef01);
         assert_eq!(0x00, view[0]);
         assert_eq!(0xab, view[1]);
@@ -447,9 +427,7 @@ mod tests {
     fn u32_write_invalid_address() {
         let mut data = [0x11, 0x22];
         let view: &mut [u8] = &mut data[..];
-        let field = BEU16Field {
-            index: 1,
-        };
+        let field = BEU16Field { index: 1 };
         field.set(view, 0xabcdef01);
         assert_eq!(0x11, view[0]);
         assert_eq!(0x22, view[1]);

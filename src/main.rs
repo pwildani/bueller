@@ -27,7 +27,7 @@ impl Recurse {
         let upstream = "8.8.8.8:53".parse().unwrap();
         Recurse {
             server: server,
-            upstream: upstream
+            upstream: upstream,
         }
     }
 }
@@ -37,11 +37,14 @@ impl mio::Handler for Recurse {
     type Timeout = ();
     type Message = Vec<u8>;
 
-    fn ready(&mut self, event_loop: &mut mio::EventLoop<Recurse>, token: mio::Token, events: mio::EventSet) {
+    fn ready(&mut self,
+             event_loop: &mut mio::EventLoop<Recurse>,
+             token: mio::Token,
+             events: mio::EventSet) {
         println!("ready...");
         match token {
             RESPONSE => {
-                if(events.is_readable()) {
+                if (events.is_readable()) {
                     let mut recv_buf = Vec::with_capacity(1024);
                     match self.server.recv_from(&mut recv_buf) {
                         Ok(addr) => {
@@ -76,7 +79,9 @@ impl mio::Handler for Recurse {
                     }
                 }
             }
-            t => { panic!("Invalid token: {:?}", t); }
+            t => {
+                panic!("Invalid token: {:?}", t);
+            }
         }
     }
 }
@@ -89,13 +94,16 @@ fn main() {
     println!("Binding socket...");
     let address = "0.0.0.0:5300".parse().unwrap();
     let listener = UdpSocket::bound(&address).unwrap();
-    event_loop.register(&listener, RESPONSE, mio::EventSet::readable(), mio::PollOpt::level());
+    event_loop.register(&listener,
+                        RESPONSE,
+                        mio::EventSet::readable(),
+                        mio::PollOpt::level());
 
     println!("Sending query ...");
     let mut buffer = Vec::new();
     let num = io::stdin().read_to_end(&mut buffer).ok().unwrap();
     println!("Read {} bytes", num);
-    let upstream = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(8,8,8,8), 53));
+    let upstream = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(8, 8, 8, 8), 53));
     listener.send_to(&mut io::Cursor::new(buffer), &upstream);
     let mut server = Recurse::new(listener);
     println!("Running...");

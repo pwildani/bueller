@@ -5,11 +5,11 @@ use super::bits::BEU32Field;
 use super::domain_name::DomainName;
 use std::ops::Range;
 
-const TYPE:BEU16Field = BEU16Field{index:0};
-const CLASS:BEU16Field = BEU16Field{index:2};
-const TTL:BEU32Field = BEU32Field{index:4};
-const LENGTH:BEU16Field = BEU16Field{index:8};
-const SIZE:usize = 10;
+const TYPE: BEU16Field = BEU16Field { index: 0 };
+const CLASS: BEU16Field = BEU16Field { index: 2 };
+const TTL: BEU32Field = BEU32Field { index: 4 };
+const LENGTH: BEU16Field = BEU16Field { index: 8 };
+const SIZE: usize = 10;
 
 pub struct Resource<'d> {
     name: DomainName<'d>,
@@ -17,11 +17,13 @@ pub struct Resource<'d> {
 }
 
 impl<'d> Resource<'d> {
-    pub fn name<'a>(&'a self) -> Option<&'a DomainName<'d>> { Some(&self.name) }
-    pub fn payload_range(&self) -> Option<Range<usize>> { 
+    pub fn name<'a>(&'a self) -> Option<&'a DomainName<'d>> {
+        Some(&self.name)
+    }
+    pub fn payload_range(&self) -> Option<Range<usize>> {
         if let Some(len) = self.data_length() {
             return Some(Range {
-                start:self.name.end_offset() + SIZE,
+                start: self.name.end_offset() + SIZE,
                 end: self.end_offset(),
             });
         }
@@ -31,24 +33,42 @@ impl<'d> Resource<'d> {
         self.name.end_offset() + SIZE + self.data_length().unwrap_or(0) as usize
     }
 
-    pub fn payload<D:?Sized + BitData>(&self, message: &'d D) -> Option<&'d <D as BitData>::Slice> {
+    pub fn payload<D: ?Sized + BitData>(&self,
+                                        message: &'d D)
+                                        -> Option<&'d <D as BitData>::Slice> {
         if let Some(range) = self.payload_range() {
             return message.get_range(range);
         }
         None
     }
 
-    pub fn rtype(&self) -> Option<u16> { TYPE.get(self.footer) }
-    pub fn rclass(&self) -> Option<u16> { CLASS.get(self.footer) }
-    pub fn ttl(&self) -> Option<u32> { TTL.get(self.footer) }
-    pub fn data_length(&self) -> Option<u16> { LENGTH.get(self.footer) }
+    pub fn rtype(&self) -> Option<u16> {
+        TYPE.get(self.footer)
+    }
+    pub fn rclass(&self) -> Option<u16> {
+        CLASS.get(self.footer)
+    }
+    pub fn ttl(&self) -> Option<u32> {
+        TTL.get(self.footer)
+    }
+    pub fn data_length(&self) -> Option<u16> {
+        LENGTH.get(self.footer)
+    }
 }
 
 impl<'d> Resource<'d> {
-    pub fn from_message<D:'d + ?Sized + BitData<Slice=[u8]>>(message: &'d D, at:usize) -> Option<Resource<'d>> {
+    pub fn from_message<D: 'd + ?Sized + BitData<Slice = [u8]>>(message: &'d D,
+                                                                at: usize)
+                                                                -> Option<Resource<'d>> {
         if let Some(name) = DomainName::from_message(message, at) {
-            if let Some(footer) = message.get_range(Range{start:name.end_offset(), end:name.end_offset() + SIZE}) {
-                return Some(Resource { name: name, footer: footer })
+            if let Some(footer) = message.get_range(Range {
+                start: name.end_offset(),
+                end: name.end_offset() + SIZE,
+            }) {
+                return Some(Resource {
+                    name: name,
+                    footer: footer,
+                });
             }
         }
         None
@@ -58,12 +78,12 @@ impl<'d> Resource<'d> {
 impl<'d> fmt::Debug for Resource<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Resource")
-            .field("name", &self.name())
-            .field("rtype", &self.rtype())
-            .field("rclass", &self.rclass())
-            .field("ttl", &self.ttl())
-            .field("rdata length", &self.data_length())
-            .finish()
+           .field("name", &self.name())
+           .field("rtype", &self.rtype())
+           .field("rclass", &self.rclass())
+           .field("ttl", &self.ttl())
+           .field("rdata length", &self.data_length())
+           .finish()
     }
 }
 
@@ -99,5 +119,5 @@ mod test {
         // Truncated packet:
         assert!(r.payload(data).is_none());
     }
-    
+
 }
