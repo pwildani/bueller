@@ -2,6 +2,7 @@ use std::fmt;
 use super::bits::BEU16Field;
 use super::bits::BitData;
 use super::domain_name::DomainName;
+use super::message::MessageCursor;
 use std::ops::Range;
 
 const TYPE: BEU16Field = BEU16Field { index: 0 };
@@ -12,12 +13,12 @@ const SIZE: usize = 4;
 
 #[derive(Clone)]
 pub struct Question<'d> {
-    name: DomainName<'d>,
+    name: DomainName,
     footer: &'d [u8],
 }
 
 impl<'d> Question<'d> {
-    pub fn name<'a>(&'a self) -> Option<&'a DomainName<'d>> {
+    pub fn name<'a>(&'a self) -> Option<&'a DomainName> {
         Some(&self.name)
     }
     pub fn qtype(&self) -> Option<u16> {
@@ -55,6 +56,39 @@ impl<'d> fmt::Debug for Question<'d> {
            .field("qtype", &self.qtype())
            .field("qclass", &self.qclass())
            .finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct QuestionMut<'d> {
+    start: usize,
+    name: DomainName,
+    data: &'d mut [u8],
+}
+
+impl<'d> QuestionMut<'d> {
+    pub fn at<'a, 'b, 'c>(idx: &'a mut MessageCursor,
+                          data: &'d mut [u8],
+                          name: &'b Vec<&'c [u8]>,
+                          qtype: u16,
+                          qclass: u16)
+                          -> Option<QuestionMut<'d>> {
+        if let Some(name) = DomainName::write_at(idx, data, name) {
+            let footer_start = name.end_offset();
+            if let Some(footer_idx) = idx.alloc(SIZE) {
+                {
+                    let footer = &mut data[footer_idx];
+                    TYPE.set(footer, qtype);
+                    CLASS.set(footer, qclass);
+                }
+                return Some(QuestionMut {
+                    start: 0,
+                    name: name,
+                    data: data,
+                });
+            }
+        }
+        None
     }
 }
 

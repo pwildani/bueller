@@ -12,12 +12,12 @@ const LENGTH: BEU16Field = BEU16Field { index: 8 };
 const SIZE: usize = 10;
 
 pub struct Resource<'d> {
-    name: DomainName<'d>,
+    name: DomainName,
     footer: &'d [u8],
 }
 
 impl<'d> Resource<'d> {
-    pub fn name<'a>(&'a self) -> Option<&'a DomainName<'d>> {
+    pub fn name(&self) -> Option<&DomainName> {
         Some(&self.name)
     }
     pub fn payload_range(&self) -> Option<Range<usize>> {

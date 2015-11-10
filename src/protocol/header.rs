@@ -1,9 +1,10 @@
 use super::bits::BitField;
 use super::bits::BitData;
-use super::bits::MutBitData;
+use super::bits::BitDataMut;
 use super::bits::BEU16Field;
 use std::ops::Deref;
 use std::fmt;
+use super::message::MessageCursor;
 
 const ID: BEU16Field = BEU16Field { index: 0 };
 
@@ -32,6 +33,10 @@ const RA: BitField = BitField {
     index: 3,
     mask: 0b1000_0000u8,
 };
+const Z: BitField = BitField {
+    index: 3,
+    mask: 0b0111_0000u8,
+};
 const RC: BitField = BitField {
     index: 3,
     mask: 0b0000_1111u8,
@@ -57,10 +62,12 @@ pub const OP_STATUS: u8 = 2;
 
 #[derive(Copy,Clone)]
 pub struct Header<'d, D: 'd + ?Sized> {
+    start: usize,
     data: &'d D,
 }
 
-pub struct MutHeader<'d, D: 'd + ?Sized> {
+pub struct HeaderMut<'d, D: 'd + ?Sized> {
+    start: usize,
     data: &'d mut D,
 }
 
@@ -68,7 +75,10 @@ pub struct MutHeader<'d, D: 'd + ?Sized> {
 impl<'d, D: 'd + ?Sized> Header<'d, D> where D: BitData {
 
     pub fn at(data: &'d D) -> Header<'d, D> {
-        Header { data: data }
+        Header {
+            start: 0,
+            data: data,
+        }
     }
 
     pub fn id(&self) -> Option<u16> {
@@ -91,6 +101,9 @@ impl<'d, D: 'd + ?Sized> Header<'d, D> where D: BitData {
     }
     pub fn ra(&self) -> Option<bool> {
         RA.nonzero(self.data)
+    }
+    pub fn z(&self) -> Option<u8> {
+        Z.get(self.data)
     }
     pub fn rc(&self) -> Option<u8> {
         RC.get(self.data)
@@ -124,14 +137,27 @@ impl<'d, D: 'd + ?Sized> Header<'d, D> where D: BitData {
     // TODO additional records iterator
 
     pub fn end_offset(&self) -> usize {
-        SIZE
+        self.start + SIZE
     }
 }
 
-impl<'d, D: 'd + ?Sized> MutHeader<'d, D> where D: MutBitData {
-    pub fn at(data: &'d mut D) -> MutHeader<'d, D> {
-        MutHeader { data: data }
+impl<'d, D: 'd + ?Sized> HeaderMut<'d, D> where D: BitDataMut {
+    pub fn at_raw(data: &'d mut D) -> HeaderMut<'d, D> {
+        HeaderMut {
+            start: 0,
+            data: data,
+        }
     }
+    pub fn at(idx: &mut MessageCursor, data: &'d mut D) -> Option<HeaderMut<'d, D>> {
+        if let Some(at) = idx.alloc(SIZE) {
+            return Some(HeaderMut {
+                start: at.start,
+                data: data,
+            });
+        }
+        None
+    }
+
     pub fn set_id(&mut self, val: u16) -> &mut Self {
         ID.set(self.data, val);
         self
@@ -180,6 +206,25 @@ impl<'d, D: 'd + ?Sized> MutHeader<'d, D> where D: MutBitData {
         AR.set(self.data, val);
         self
     }
+
+    pub fn end_offset(&self) -> usize {
+        self.start + SIZE
+    }
+
+    pub fn allow_recursion(&mut self) -> &mut Self {
+        self.set_rd(true)
+    }
+
+    pub fn make_query(&mut self, id: u16) -> &mut Self {
+        self.set_id(id)
+            .set_qr(false)
+            .set_op(OP_QUERY)
+            .set_aa(false)
+            .set_tc(false)
+            .allow_recursion()
+            .set_ra(false)
+            .set_rc(0)
+    }
 }
 
 impl<'d, D: 'd + ?Sized> fmt::Debug for Header<'d, D> where D: BitData {
@@ -204,19 +249,22 @@ impl<'d, D: 'd + ?Sized> fmt::Debug for Header<'d, D> where D: BitData {
 }
 
 
-impl<'d, D: 'd> MutHeader<'d, D> where D: MutBitData {
+impl<'d, D: 'd> HeaderMut<'d, D> where D: BitDataMut {
     fn as_header(&'d self) -> Header<'d, D> {
         let readonly: &D = &self.data;
-        Header { data: readonly }
+        Header {
+            start: self.start,
+            data: readonly,
+        }
     }
 }
 
 
 
-impl<'d, D: 'd> fmt::Debug for MutHeader<'d, D> where D: MutBitData {
+impl<'d, D: 'd> fmt::Debug for HeaderMut<'d, D> where D: BitDataMut {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let h = self.as_header();
-        fmt.debug_struct("MutHeader")
+        fmt.debug_struct("HeaderMut")
            .field("id", &h.id())
            .field("qr", &h.qr())
            .field("op", &h.op())
@@ -416,7 +464,7 @@ mod tests {
     #[test]
     fn set_id() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_id(0xabcd);
+        HeaderMut::at_raw(data).set_id(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.id());
     }
@@ -424,7 +472,7 @@ mod tests {
     #[test]
     fn set_qr() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_qr(true);
+        HeaderMut::at_raw(data).set_qr(true);
         let h = Header::at(data);
         assert_eq!(Some(true), h.qr());
     }
@@ -432,7 +480,7 @@ mod tests {
     #[test]
     fn set_op() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_op(0xff);
+        HeaderMut::at_raw(data).set_op(0xff);
         let h = Header::at(data);
         assert_eq!(Some(0xf), h.op());
     }
@@ -440,7 +488,7 @@ mod tests {
     #[test]
     fn set_aa() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_aa(true);
+        HeaderMut::at_raw(data).set_aa(true);
         let h = Header::at(data);
         assert_eq!(Some(true), h.aa());
     }
@@ -448,7 +496,7 @@ mod tests {
     #[test]
     fn set_tc() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_tc(true);
+        HeaderMut::at_raw(data).set_tc(true);
         let h = Header::at(data);
         assert_eq!(Some(true), h.tc());
     }
@@ -456,7 +504,7 @@ mod tests {
     #[test]
     fn set_rd() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_rd(true);
+        HeaderMut::at_raw(data).set_rd(true);
         let h = Header::at(data);
         assert_eq!(Some(true), h.rd());
     }
@@ -464,7 +512,7 @@ mod tests {
     #[test]
     fn set_ra() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_ra(true);
+        HeaderMut::at_raw(data).set_ra(true);
         let h = Header::at(data);
         assert_eq!(Some(true), h.ra());
     }
@@ -472,7 +520,7 @@ mod tests {
     #[test]
     fn set_rc() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_rc(0xff);
+        HeaderMut::at_raw(data).set_rc(0xff);
         let h = Header::at(data);
         assert_eq!(Some(0xf), h.rc());
     }
@@ -480,7 +528,7 @@ mod tests {
     #[test]
     fn set_qd() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_qd(0xabcd);
+        HeaderMut::at_raw(data).set_qd(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.qd());
     }
@@ -488,7 +536,7 @@ mod tests {
     #[test]
     fn set_an() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_an(0xabcd);
+        HeaderMut::at_raw(data).set_an(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.an());
     }
@@ -496,7 +544,7 @@ mod tests {
     #[test]
     fn set_ns() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_ns(0xabcd);
+        HeaderMut::at_raw(data).set_ns(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.ns());
     }
@@ -504,7 +552,7 @@ mod tests {
     #[test]
     fn set_ar() {
         let data: &mut Vec<u8> = &mut vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        MutHeader::at(data).set_ar(0xabcd);
+        HeaderMut::at_raw(data).set_ar(0xabcd);
         let h = Header::at(data);
         assert_eq!(Some(0xabcd), h.ar());
     }

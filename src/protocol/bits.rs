@@ -9,7 +9,7 @@ pub trait BitData {
     fn len(&self) -> usize;
 }
 
-pub trait MutBitData: BitData {
+pub trait BitDataMut: BitData {
     type SliceMut: ?Sized + IndexMut<usize,Output=u8>;
 
     fn get_mut(&mut self, index: usize) -> Option<&mut u8>;
@@ -37,7 +37,7 @@ impl BitData for [u8] {
     }
 }
 
-impl MutBitData for [u8] {
+impl BitDataMut for [u8] {
     type SliceMut = [u8];
 
     #[inline]
@@ -78,7 +78,7 @@ impl BitData for Vec<u8> {
     }
 }
 
-impl MutBitData for Vec<u8> {
+impl BitDataMut for Vec<u8> {
     type SliceMut = [u8];
 
     #[inline]
@@ -121,7 +121,7 @@ impl BitField {
     }
 
     #[inline]
-    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u8) {
+    pub fn set<T: BitDataMut + ?Sized>(&self, data: &mut T, value: u8) {
         if let Some(elem) = data.get_mut(self.index) {
             *elem = (*elem & !self.mask) |
                     ((value as u8 & (self.mask >> self.mask.trailing_zeros())) <<
@@ -144,7 +144,7 @@ impl BEU16Field {
     }
 
     #[inline]
-    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u16) {
+    pub fn set<T: BitDataMut + ?Sized>(&self, data: &mut T, value: u16) {
         if let Some(split) = data.get_mut_range(self.index..self.index + 2) {
             split[0] = ((value & 0xff00) >> 8) as u8;
             split[1] = (value & 0x00ff) as u8;
@@ -168,7 +168,7 @@ impl BEU32Field {
     }
 
     #[inline]
-    pub fn set<T: MutBitData + ?Sized>(&self, data: &mut T, value: u32) {
+    pub fn set<T: BitDataMut + ?Sized>(&self, data: &mut T, value: u32) {
         // TODO unsafe impl, once I can tell what the native endianness is.
         if let Some(split) = data.get_mut_range(self.index..self.index + 4) {
             split[0] = ((value & 0xff000000) >> 24) as u8;

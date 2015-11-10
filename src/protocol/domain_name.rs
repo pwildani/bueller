@@ -4,27 +4,30 @@ use std::slice;
 use std::str;
 use std::vec::Vec;
 use super::bits::BitData;
+use super::bits::BitDataMut;
 use super::bits::BitField;
+use super::bits::BEU16Field;
 use std::ops::Range;
+use std::io::Write;
+use super::message::MessageCursor;
 
-// TODO generalize segment storage over BitData::Slice.
-
-#[derive(Clone)]
-pub struct DomainName<'d> {
-    /// The next byte offset in the message after this name.
+#[derive(Debug, Copy, Clone)]
+pub struct DomainName {
+    start: usize,
     end: usize,
-    segments: Vec<&'d [u8]>,
 }
 
-const TAG: u8 = 0b1100_0000u8;
-const SEGMENT: u8 = 0b0000_0000u8;
-const POINTER: u8 = 0b1100_0000u8;
+const TAG_MASK: u8 = 0b1100_0000u8;
+const SEGMENT_TAG: u8 = 0b0000_0000u8;
+const POINTER_TAG: u8 = 0b1100_0000u8;
 
 
-impl<'d> DomainName<'d> {
-    pub fn from_message<D: ?Sized + BitData>(message: &'d D, at: usize) -> Option<DomainName<'d>>
-        where D: BitData<Slice = [u8]>
-    {
+impl DomainName {
+
+    /// Returns a DomainName from message if the bytes are valid.
+    pub fn from_message<'d, D: 'd + ?Sized + BitData>(message: &'d D,
+                                                      at: usize)
+                                                      -> Option<DomainName> {
         // Consume the inline portion of the name from the message.
         let mut end = at;
         loop {
@@ -43,48 +46,59 @@ impl<'d> DomainName<'d> {
                 _ => break,
             }
         }
-        let mut name = DomainName {
+        let name = DomainName {
+            start: at,
             end: end,
-            segments: Vec::with_capacity(6),
         };
-        name.parse_segments(message, at);
-        return Some(name);
+
+        // Check if the value here is parsable.
+        if let Some(_) = name.segments(message) {
+            return Some(name);
+        }
+        None
     }
 
-    fn parse_segments<D: ?Sized + BitData>(&mut self, message: &'d D, start: usize)
-        where D: BitData<Slice = [u8]>
-    {
-        let mut level = 64; // Allow at most 64 pointers. (RFC: unbounded)
-        let mut parts = 64; // Allow at most 64 name parts.
-        let mut pos = start;
+    fn segments<'d, D: 'd + ?Sized + BitData>(&self,
+                                              message: &'d D)
+                                              -> Option<Vec<&'d <D as BitData>::Slice>> {
+        // Allow at most 63 pointers. RFC: unbounded, but more pointers than segments
+        // is is an
+        // inefficient encoding.
+        let mut level = 64;
+
+        // Allow at most 63 name parts.
+        let mut parts = 64;
+        let mut pos = self.start;
+        let mut segments = Vec::with_capacity(7);
         while level > 0 && parts > 0 {
             match DomainName::parse_segment_at(message, pos) {
                 (Some(piece), Some(next)) => {
                     // Normal name part.
-                    self.segments.push(piece);
+                    segments.push(piece);
                     parts -= 1;
                     pos = next;
                 }
                 (Some(piece), None) => {
                     // Root found. No more name parts.
-                    self.segments.push(piece);
-                    break;
+                    segments.push(piece);
+                    return Some(segments);
                 }
                 (None, Some(next)) => {
                     // Pointer. Resume at some random other point in the message.
                     level -= 1;
                     pos = next;
                 }
-                (None, None) => break, // Invalid segment.
+                (None, None) => return None, // Invalid segment.
             }
         }
+        // overflow in pointer or part count.
+        return None;
     }
 
-    fn parse_segment_at<D: ?Sized + BitData>(message: &'d D,
-                                             pos: usize)
-                                             -> (Option<&'d [u8]>, Option<usize>)
-        where D: BitData<Slice = [u8]>
-    {
+    fn parse_segment_at<'d, D: 'd + ?Sized + BitData>
+                                                      (message: &'d D,
+                                                       pos: usize)
+                                                       -> (Option<&'d <D as BitData>::Slice>, Option<usize>) {
         // The first two bits on the segment header octet are a type tag.
         // TODO check that this produces reasonable assembly.
         match (BitField {
@@ -98,9 +112,9 @@ impl<'d> DomainName<'d> {
                 end: pos,
             }),
                                None),
-            Some(segment) if SEGMENT == TAG & segment => {
+            Some(segment) if SEGMENT_TAG == TAG_MASK & segment => {
                 // The next 6 bits are the size of this segment.
-                let len = (segment & !TAG) as usize;
+                let len = (segment & !TAG_MASK) as usize;
                 let start = pos + 1;
                 let end = start + len;
                 return (message.get_range(Range {
@@ -109,10 +123,10 @@ impl<'d> DomainName<'d> {
                 }),
                         Some(end));
             }
-            Some(pointer) if POINTER == TAG & pointer => {
+            Some(pointer) if POINTER_TAG == TAG_MASK & pointer => {
                 // Jump to the pointed-to byte in the message.
                 // The next 14 bits are the offset from the beginning of the message.
-                let high = pointer & !TAG;
+                let high = pointer & !TAG_MASK;
                 let ptr = match (BitField {
                                      index: pos + 1,
                                      mask: 0xff,
@@ -129,26 +143,72 @@ impl<'d> DomainName<'d> {
         }
     }
 
-    pub fn valid(&self) -> bool {
-        // Ends in a root token.
-        return self.segments.len() > 0 && 0 == self.segments[self.segments.len() - 1].len();
-    }
-
-    pub fn iter<'a>(&'a self) -> slice::Iter<&'a [u8]> {
-        self.segments.iter()
-    }
-
     pub fn end_offset(&self) -> usize {
         self.end
     }
-}
 
-impl<'d> fmt::Debug for DomainName<'d> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("DomainName")
-           .field("part count", &self.segments.len())
-           .field("parts", &self.segments)
-           .finish()
+    // TODO figure out how to make SliceMut cover IndexMut<usize> and
+    // IndexMut<Range>
+    // simultaneously so this doesn't require SliceMut to be [u8]
+    pub fn write_at<'a, 'b, 'c, 'd, D: 'd + ?Sized + BitDataMut>(
+        idx: &'a mut MessageCursor,
+        data: &'d mut D,
+        name: &'c Vec<&'b [u8]>)
+        -> Option<DomainName>
+        where D: BitDataMut<SliceMut = [u8]>,
+              D: BitData<Slice = [u8]>
+    {
+        // If name ends in a root token, ignore it.
+        let name_len = name.len() - match name.last() {
+            Some(tail) if tail.len() == 0 => 1,
+            _ => 0
+        };
+
+        let start = idx.tell();
+        for i in 0..name_len {
+            let suffix = &name[i..name_len];
+            match idx.lookup_name_suffix(data, suffix) {
+                Some(mut offset) => {
+                    // Suffix is already in the message. Write out a pointer to it.
+                    if let Some(ptr_idx) = idx.alloc(2) {
+                        offset |= (POINTER_TAG as u16) << 8;
+                        BEU16Field { index: ptr_idx.start }.set(data, offset);
+                        break;
+                    } else {
+                        // No more space in the buffer.
+                        return None;
+                    }
+                }
+                None => {
+                    // Write out the next segment.
+                    let segment_data = name[i];
+                    if segment_data.len() > 63 {
+                        // Invalid name
+                        return None;
+                    }
+                    if let Some(segment_idx) = idx.alloc(1 + segment_data.len()) {
+                        idx.register_name_suffix(segment_idx.clone().start, suffix);
+                        if let Some(ref mut segment) = data.get_mut_range(segment_idx) {
+                            segment[0] = segment_data.len() as u8;
+                            // clone_from_slice?
+                            (&mut segment[1..segment_data.len()+1]).write(segment_data).unwrap();
+                        }
+                    } else {
+                        // No more space in the buffer.
+                        return None;
+                    }
+                }
+            }
+        }
+        // Append a root segment
+        if let Some(segment_idx) = idx.alloc(1) {
+            if let Some(ref mut segment) = data.get_mut_range(segment_idx) {
+                segment[0] = 0;
+            }
+        } else {
+            return None;
+        }
+        return DomainName::from_message(data, start);
     }
 }
 

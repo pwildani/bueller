@@ -1,12 +1,14 @@
 extern crate bueller;
 extern crate mio;
 
-use bueller::protocol::Header;
-use bueller::protocol::Question;
+use bueller::protocol::{Header, HeaderMut};
+use bueller::protocol::MessageCursor;
+use bueller::protocol::{Question, QuestionMut};
 use bueller::protocol::Resource;
 use mio::udp::UdpSocket;
 use std::io::Read;
 use std::io;
+use std::iter;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use std::net::Ipv4Addr;
@@ -100,9 +102,27 @@ fn main() {
                         mio::PollOpt::level());
 
     println!("Sending query ...");
-    let mut buffer = Vec::new();
-    let num = io::stdin().read_to_end(&mut buffer).ok().unwrap();
-    println!("Read {} bytes", num);
+
+    let mut buffer = iter::repeat(0u8).take(512).collect::<Vec<u8>>();
+    let mut idx = MessageCursor::new(buffer.len());
+    HeaderMut::at(&mut idx, &mut buffer)
+        .unwrap()
+        .make_query(1).set_qd(1);
+    QuestionMut::at(&mut idx,
+                    &mut buffer,
+                    // github, com, ""
+                    &vec![&[0x67u8, 0x69, 0x74, 0x68, 0x75, 0x62][..],
+                          &[0x63, 0x6f, 0x6d][..],
+                          &[][..]],
+                    1, //0xff, // QTYPE_ALL
+                    1 /* QCLASS_IN */)
+        .unwrap();
+    buffer.truncate(idx.tell());
+    println!("Request: {:?}", buffer);
+    println!("header: {:?}", Header::at(&buffer));
+    println!("question: {:?}", Question::from_message(&buffer, 12));
+
+
     let upstream = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(8, 8, 8, 8), 53));
     listener.send_to(&mut io::Cursor::new(buffer), &upstream);
     let mut server = Recurse::new(listener);
