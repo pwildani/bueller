@@ -9,7 +9,8 @@ Bueller: A DNS library
 ### Plans
 
 * Seperable DNS zero-copy implementation.
-* Caching DNS relay server
+* Caching DNS relay server.
+* Make the bitfield accessors less over-designed. (I was exploring how far I could push rust's abstraction over the slice API)
 
 ### Ongoing Research
 
