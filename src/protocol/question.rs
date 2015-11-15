@@ -69,12 +69,11 @@ pub struct QuestionMut<'d> {
 impl<'d> QuestionMut<'d> {
     pub fn at<'a, 'b, 'c>(idx: &'a mut MessageCursor,
                           data: &'d mut [u8],
-                          name: &'b Vec<&'c [u8]>,
+                          name: &'b [&'c [u8]],
                           qtype: u16,
                           qclass: u16)
-                          -> Option<QuestionMut<'d>> {
+        -> Option<QuestionMut<'d>> {
         if let Some(name) = DomainName::write_at(idx, data, name) {
-            let footer_start = name.end_offset();
             if let Some(footer_idx) = idx.alloc(SIZE) {
                 {
                     let footer = &mut data[footer_idx];

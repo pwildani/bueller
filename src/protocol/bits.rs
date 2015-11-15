@@ -428,7 +428,7 @@ mod tests {
         let mut data = [0x11, 0x22];
         let view: &mut [u8] = &mut data[..];
         let field = BEU16Field { index: 1 };
-        field.set(view, 0xabcdef01);
+        field.set(view, 0xabcd);
         assert_eq!(0x11, view[0]);
         assert_eq!(0x22, view[1]);
     }
