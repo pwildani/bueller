@@ -107,14 +107,15 @@ fn main() {
     let mut idx = MessageCursor::new(buffer.len());
     HeaderMut::at(&mut idx, &mut buffer)
         .unwrap()
-        .make_query(1).set_qd(1);
+        .make_query(1)
+        .set_qd(1);
     QuestionMut::at(&mut idx,
                     &mut buffer,
                     // github, com, ""
                     &vec![&[0x67u8, 0x69, 0x74, 0x68, 0x75, 0x62][..],
                           &[0x63, 0x6f, 0x6d][..],
                           &[][..]],
-                    1, //0xff, // QTYPE_ALL
+                    1, // 0xff, // QTYPE_ALL
                     1 /* QCLASS_IN */)
         .unwrap();
     buffer.truncate(idx.tell());

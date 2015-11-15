@@ -150,18 +150,18 @@ impl DomainName {
     // TODO figure out how to make SliceMut cover IndexMut<usize> and
     // IndexMut<Range>
     // simultaneously so this doesn't require SliceMut to be [u8]
-    pub fn write_at<'a, 'b, 'c, 'd, D: 'd + ?Sized + BitDataMut>(
-        idx: &'a mut MessageCursor,
-        data: &'d mut D,
-        name: &'c Vec<&'b [u8]>)
-        -> Option<DomainName>
+    pub fn write_at<'a, 'b, 'c, 'd, D: 'd + ?Sized + BitDataMut>(idx: &'a mut MessageCursor,
+                                                                 data: &'d mut D,
+                                                                 name: &'c Vec<&'b [u8]>)
+                                                                 -> Option<DomainName>
         where D: BitDataMut<SliceMut = [u8]>,
               D: BitData<Slice = [u8]>
     {
         // If name ends in a root token, ignore it.
-        let name_len = name.len() - match name.last() {
+        let name_len = name.len() -
+                       match name.last() {
             Some(tail) if tail.len() == 0 => 1,
-            _ => 0
+            _ => 0,
         };
 
         let start = idx.tell();
@@ -191,7 +191,7 @@ impl DomainName {
                         if let Some(ref mut segment) = data.get_mut_range(segment_idx) {
                             segment[0] = segment_data.len() as u8;
                             // clone_from_slice?
-                            (&mut segment[1..segment_data.len()+1]).write(segment_data).unwrap();
+                            (&mut segment[1..segment_data.len() + 1]).write(segment_data).unwrap();
                         }
                     } else {
                         // No more space in the buffer.
