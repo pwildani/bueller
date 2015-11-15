@@ -5,6 +5,7 @@ use bueller::protocol::{Header, HeaderMut};
 use bueller::protocol::MessageCursor;
 use bueller::protocol::{Question, QuestionMut};
 use bueller::protocol::Resource;
+use bueller::protocol::encode_dotted_name;
 use mio::udp::UdpSocket;
 use std::io::Read;
 use std::io;
@@ -109,12 +110,17 @@ fn main() {
         .unwrap()
         .make_query(1)
         .set_qd(1);
+    let qname = encode_dotted_name("github.com").unwrap();
+    let mut qref = Vec::with_capacity(qname.len());
+    for i in 0..qname.len() {
+        qref.push(&qname[i][..]);
+    }
+    // qref == vec![&[0x67u8, 0x69, 0x74, 0x68, 0x75, 0x62][..],
+    //             &[0x63, 0x6f, 0x6d][..]];
     QuestionMut::at(&mut idx,
                     &mut buffer,
                     // github, com, ""
-                    &vec![&[0x67u8, 0x69, 0x74, 0x68, 0x75, 0x62][..],
-                          &[0x63, 0x6f, 0x6d][..],
-                          &[][..]],
+                    &qref[..],
                     1, // 0xff, // QTYPE_ALL
                     1 /* QCLASS_IN */)
         .unwrap();

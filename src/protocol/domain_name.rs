@@ -1,11 +1,12 @@
+use std::io::Write;
+use std::ops::Range;
 use std::vec::Vec;
+use super::bits::BEU16Field;
 use super::bits::BitData;
 use super::bits::BitDataMut;
 use super::bits::BitField;
-use super::bits::BEU16Field;
-use std::ops::Range;
-use std::io::Write;
 use super::message::MessageCursor;
+
 
 #[derive(Debug, Copy, Clone)]
 pub struct DomainName {
@@ -208,6 +209,39 @@ impl DomainName {
     }
 }
 
+fn encode_segment(segment: &str) -> Option<Vec<u8>> {
+    use std::ascii::AsciiExt;
+    use url::punycode;
+
+    if segment.is_ascii() {
+        return Some(segment.into());
+    } else {
+        if let Some(encoded) = punycode::encode(&segment.chars().collect::<Vec<char>>()[..]) {
+            let mut result = Vec::with_capacity(encoded.len() + 4);
+            // RFC 3490 Section 5: ACE prefix.
+            result.extend("xn--".bytes());
+            result.extend(encoded.bytes());
+            return Some(result);
+        }
+        return None;
+    }
+}
+
+/// Encodes "foo.bar" into the ascii bytes that DNS handles over the wire.
+///
+/// Not zero-copy.
+pub fn encode_dotted_name(name: &str) -> Option<Vec<Vec<u8>>> {
+    let mut result = Vec::with_capacity(7);
+    for s in name.split('.').map(encode_segment) {
+        if let Some(segment) = s {
+            result.push(segment);
+        } else {
+            return None;
+        }
+    }
+    return Some(result);
+}
+
 
 #[cfg(test)]
 mod test {
@@ -351,5 +385,18 @@ mod test {
         assert_eq!(&vec![0u8, 2, 1, 2, 1, 3, 0, 0], buffer);
     }
 
-// TODO: test write_at with compression, once MessageCursor supports it.
+    // TODO: test write_at with compression, once MessageCursor supports it.
+
+
+    #[test]
+    fn encode() {
+        let name = "123.a-b.ű.déf.";
+        let segments = encode_dotted_name(name).unwrap();
+        assert_eq!(vec!["123".bytes().collect::<Vec<u8>>(),
+                        "a-b".bytes().collect::<Vec<u8>>(),
+                        "xn--5ga".bytes().collect::<Vec<u8>>(),
+                        "xn--df-bja".bytes().collect::<Vec<u8>>(),
+                        "".bytes().collect::<Vec<u8>>()],
+                   segments);
+    }
 }
