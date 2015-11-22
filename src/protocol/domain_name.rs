@@ -209,39 +209,6 @@ impl DomainName {
     }
 }
 
-fn encode_segment(segment: &str) -> Option<Vec<u8>> {
-    use std::ascii::AsciiExt;
-    use url::punycode;
-
-    if segment.is_ascii() {
-        return Some(segment.into());
-    } else {
-        if let Some(encoded) = punycode::encode(&segment.chars().collect::<Vec<char>>()[..]) {
-            let mut result = Vec::with_capacity(encoded.len() + 4);
-            // RFC 3490 Section 5: ACE prefix.
-            result.extend("xn--".bytes());
-            result.extend(encoded.bytes());
-            return Some(result);
-        }
-        return None;
-    }
-}
-
-/// Encodes "foo.bar" into the ascii bytes that DNS handles over the wire.
-///
-/// Not zero-copy.
-pub fn encode_dotted_name(name: &str) -> Option<Vec<Vec<u8>>> {
-    let mut result = Vec::with_capacity(7);
-    for s in name.split('.').map(encode_segment) {
-        if let Some(segment) = s {
-            result.push(segment);
-        } else {
-            return None;
-        }
-    }
-    return Some(result);
-}
-
 
 #[cfg(test)]
 mod test {
@@ -386,17 +353,4 @@ mod test {
     }
 
     // TODO: test write_at with compression, once MessageCursor supports it.
-
-
-    #[test]
-    fn encode() {
-        let name = "123.a-b.ű.déf.";
-        let segments = encode_dotted_name(name).unwrap();
-        assert_eq!(vec!["123".bytes().collect::<Vec<u8>>(),
-                        "a-b".bytes().collect::<Vec<u8>>(),
-                        "xn--5ga".bytes().collect::<Vec<u8>>(),
-                        "xn--df-bja".bytes().collect::<Vec<u8>>(),
-                        "".bytes().collect::<Vec<u8>>()],
-                   segments);
-    }
 }
