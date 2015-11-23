@@ -55,7 +55,7 @@ pub fn encode_dotted_name(name: &str) -> Option<Vec<Vec<u8>>> {
     return Some(result);
 }
 
-pub fn vec_ref<'a>(segments: &'a Vec<Vec<u8>>) -> Vec<&'a[u8]> {
+pub fn vec_ref<'a>(segments: &'a Vec<Vec<u8>>) -> Vec<&'a [u8]> {
     let mut nref = Vec::with_capacity(segments.len());
     for i in 0..segments.len() {
         nref.push(&segments[i][..]);

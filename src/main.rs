@@ -3,76 +3,98 @@ extern crate mio;
 
 use bueller::protocol::{Header, HeaderMut};
 use bueller::protocol::MessageCursor;
-use bueller::protocol::{Question, QuestionMut};
 use bueller::protocol::Resource;
+use bueller::protocol::{Question, QuestionMut};
 use bueller::rfc4390::{encode_dotted_name, vec_ref};
 use mio::udp::UdpSocket;
 use std::io::Read;
 use std::io;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::iter;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::collections::HashMap;
 
-const RESPONSE: mio::Token = mio::Token(0);
-const QUERY: mio::Token = mio::Token(1);
+const UDP: mio::Token = mio::Token(0);
+const LOCAL_LOOKUP: mio::Token = mio::Token(1);
 
-
-
-struct Recurse {
+struct IncomingUdp {
     server: UdpSocket,
-    upstream: SocketAddr,
 }
 
-impl Recurse {
-    fn new(server: UdpSocket) -> Recurse {
-        let upstream = "8.8.8.8:53".parse().unwrap();
-        Recurse {
-            server: server,
-            upstream: upstream,
+impl IncomingUdp {
+    fn new(address: SocketAddr) -> IncomingUdp {
+        let server = UdpSocket::bound(&address).unwrap();
+        IncomingUdp { server: server }
+    }
+
+    fn register(&self, event_loop: &mut mio::EventLoop<Self>) {
+        event_loop.register(&self.server,
+                            UDP,
+                            mio::EventSet::readable(),
+                            mio::PollOpt::level());
+    }
+
+    fn read_message(&mut self) -> io::Result<(SocketAddr, Vec<u8>)> {
+        // TODO self.config.max_packet_size
+        let mut buf = Vec::with_capacity(1024);
+        if let Some(addr) = try!(self.server.recv_from(&mut buf)) {
+            return Ok((addr, buf));
+        }
+        Err(Error::new(ErrorKind::WouldBlock, "Would block"))
+    }
+
+    fn dispatch_message(&mut self, from: SocketAddr, message: Vec<u8>) {
+        println!("Got a request from {:?}", from);
+        println!("{:?}", message);
+        let msg = &message[..];
+        let header = Header::at(msg);
+        println!("Header {:?}", &header);
+        let mut next = header.end_offset();
+        if let Some(qdcount) = header.qd() {
+            for q in 0..qdcount {
+                println!("Question {}@{}:", q, next);
+                if let Some(query) = Question::from_message(msg, next) {
+                    println!(" .. {:?}", &query);
+                    if let Some(name) = query.name() {
+                        println!(" .. name = {:?}", name.segments(msg));
+                    }
+                    next = query.end_offset();
+                } else {
+                    println!(" .. None");
+                }
+            }
+        }
+        if let Some(ancount) = header.an() {
+            for a in 0..ancount {
+                if let Some(answer) = Resource::from_message(msg, next) {
+                    next = answer.end_offset();
+                    println!("Answer {}: {:?}", a, &answer);
+                }
+            }
         }
     }
 }
 
 
-impl mio::Handler for Recurse {
+impl mio::Handler for IncomingUdp {
     type Timeout = ();
     type Message = Vec<u8>;
 
     fn ready(&mut self,
-             event_loop: &mut mio::EventLoop<Recurse>,
+             event_loop: &mut mio::EventLoop<Self>,
              token: mio::Token,
              events: mio::EventSet) {
         println!("ready...");
         match token {
-            RESPONSE => {
-                if (events.is_readable()) {
-                    let mut recv_buf = Vec::with_capacity(1024);
-                    match self.server.recv_from(&mut recv_buf) {
-                        Ok(addr) => {
-                            let msg = &recv_buf[..];
-                            println!("Got a response from {:?}", addr);
-                            println!("{:?}", recv_buf);
-                            let header = Header::at(msg);
-                            println!("Header {:?}", &header);
-                            let mut next = header.end_offset();
-                            for qdcount in header.qd() {
-                                for q in 0..qdcount {
-                                    if let Some(query) = Question::from_message(msg, next) {
-                                        next = query.end_offset();
-                                        println!("Question {}: {:?}", q, &query);
-                                    }
-                                }
-                            }
-                            for ancount in header.an() {
-                                for a in 0..ancount {
-                                    if let Some(answer) = Resource::from_message(msg, next) {
-                                        next = answer.end_offset();
-                                        println!("Answer {}: {:?}", a, &answer);
-                                    }
-                                }
-                            }
+            UDP => {
+                if events.is_readable() {
+                    match self.read_message() {
+                        Ok((addr, buf)) => {
+                            self.dispatch_message(addr, buf);
                             event_loop.shutdown();
                         }
                         Err(e) => {
@@ -89,45 +111,11 @@ impl mio::Handler for Recurse {
     }
 }
 
+
 fn main() {
     println!("Init...");
-
-    let mut event_loop = mio::EventLoop::new().unwrap();
-
-    println!("Binding socket...");
-    let address = "0.0.0.0:5300".parse().unwrap();
-    let listener = UdpSocket::bound(&address).unwrap();
-    event_loop.register(&listener,
-                        RESPONSE,
-                        mio::EventSet::readable(),
-                        mio::PollOpt::level());
-
-    println!("Sending query ...");
-
-    let mut buffer = iter::repeat(0u8).take(512).collect::<Vec<u8>>();
-    let mut idx = MessageCursor::new(buffer.len());
-    HeaderMut::at(&mut idx, &mut buffer)
-        .unwrap()
-        .make_query(1)
-        .set_qd(1);
-    let qname = encode_dotted_name("github.com").unwrap();
-    let qref = vec_ref(&qname);
-
-    QuestionMut::at(&mut idx,
-                    &mut buffer,
-                    &qref[..],
-                    1, // 0xff, // QTYPE_ALL
-                    1 /* QCLASS_IN */)
-        .unwrap();
-    buffer.truncate(idx.tell());
-    println!("Request: {:?}", buffer);
-    println!("header: {:?}", Header::at(&buffer));
-    println!("question: {:?}", Question::from_message(&buffer, 12));
-
-
-    let upstream = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(8, 8, 8, 8), 53));
-    listener.send_to(&mut io::Cursor::new(buffer), &upstream);
-    let mut server = Recurse::new(listener);
-    println!("Running...");
-    event_loop.run(&mut server);
+    let mut udp_event_loop = mio::EventLoop::new().unwrap();
+    let mut udpserver = IncomingUdp::new("0.0.0.0:5300".parse().unwrap());
+    udpserver.register(&mut udp_event_loop);
+    udp_event_loop.run(&mut udpserver);
 }

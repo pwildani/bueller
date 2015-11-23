@@ -55,8 +55,8 @@ impl DomainName {
         None
     }
 
-    fn segments<'d, D: 'd + ?Sized + BitData>(&self,
-                                              message: &'d D)
+    pub fn segments<'d, D: 'd + ?Sized + BitData>(&self,
+                                                  message: &'d D)
         -> Option<Vec<&'d <D as BitData>::Slice>> {
         // Allow at most 63 pointers. RFC: unbounded, but more pointers than segments
         // is is an
@@ -352,5 +352,5 @@ mod test {
         assert_eq!(&vec![0u8, 2, 1, 2, 1, 3, 0, 0], buffer);
     }
 
-    // TODO: test write_at with compression, once MessageCursor supports it.
+// TODO: test write_at with compression, once MessageCursor supports it.
 }
