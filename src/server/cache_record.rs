@@ -1,14 +1,12 @@
 extern crate mio;
 extern crate time;
 
-use std::u64;
 use std::cmp::min;
 use std::collections::BTreeMap;
 
-pub type Name = Vec<Vec<u8>>;
+use super::time::{time_t, TIME_T_MAX};
 
-pub type time_t = u64;
-pub const TIME_T_MAX: time_t = u64::MAX;
+pub type Name = Vec<Vec<u8>>;
 
 #[derive(Clone, Debug)]
 pub struct CacheResource {
@@ -75,6 +73,7 @@ impl CacheRecord {
 #[cfg(test)]
 mod tests {
     use std::iter::Iterator;
+    use super::super::time::{time_t, TIME_T_MAX};
     use super::*;
 
     fn name() -> Name {
@@ -88,7 +87,6 @@ mod tests {
     fn ttls<'a, T: Iterator<Item = &'a CacheResource>>(resources: T) -> Vec<time_t> {
         resources.map(|r| r.absolute_ttl).collect::<Vec<time_t>>()
     }
-
 
     #[test]
     fn test_empty() {
