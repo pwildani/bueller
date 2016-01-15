@@ -159,6 +159,8 @@ enum SessionId {
     UdpId(SocketAddr, u16),
 }
 
+unsafe impl Send for SessionId {}
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 enum SessionState {
     Invalid,
@@ -276,17 +278,37 @@ impl UdpServer {
     }
 
     fn update_session_or_drop(&mut self, from: SessionId, message: Vec<u8>) {
+        // Non query message.
+        // See if it matches an in-progress session, and update the match with the new data if so.
     }
 
     fn send_client_error_reply(&mut self, from: SessionId, message: Vec<u8>) {
     }
+
+    fn send_server_error_reply(&mut self, from: SessionId, message: Vec<u8>) {
+    }
 }
 
 
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+enum LocalOperation {
+    CacheLookup(SessionId),
+}
+
+unsafe impl Send for LocalOperation {}
+
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+enum Timeout {
+    SessionTimeout(SessionId),
+    CacheTimeout,
+}
+
+unsafe impl Send for Timeout {}
 
 impl mio::Handler for UdpServer {
-    type Timeout = ();
-    type Message = Vec<u8>;
+    type Timeout = Timeout;
+    type Message = LocalOperation;
 
     fn ready(&mut self,
              event_loop: &mut mio::EventLoop<Self>,
@@ -310,6 +332,20 @@ impl mio::Handler for UdpServer {
             }
             t => {
                 panic!("Invalid token: {:?}", t);
+            }
+        }
+    }
+
+    fn timeout(&mut self, event_loop: &mut mio::EventLoop<Self>, timeout: Timeout) {
+        // TODO session timeout
+        // TODO cache timeout
+    }
+
+    fn notify(&mut self, event_loop: &mut mio::EventLoop<Self>, op: LocalOperation) {
+        println!("local op...");
+        match op {
+            LocalOperation::CacheLookup(id) => {
+                // TODO run one (or some tuned N) cache lookup for the given session
             }
         }
     }
