@@ -1,9 +1,9 @@
-mod bits;
-mod header;
-mod question;
-mod domain_name;
-mod resource;
-mod message;
+pub mod bits;
+pub mod header;
+pub mod question;
+pub mod domain_name;
+pub mod resource;
+pub mod message;
 
 pub use self::header::{Header, HeaderMut};
 pub use self::question::{Question, QuestionMut};

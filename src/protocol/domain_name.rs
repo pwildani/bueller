@@ -5,6 +5,7 @@ use super::bits::BEU16Field;
 use super::bits::BitData;
 use super::bits::BitDataMut;
 use super::bits::BitField;
+use super::bits::HasLength;
 use super::message::MessageCursor;
 
 
@@ -12,6 +13,7 @@ use super::message::MessageCursor;
 pub struct DomainName {
     start: usize,
     end: usize,
+    total_bytes: usize,
 }
 
 const TAG_MASK: u8 = 0b1100_0000u8;
@@ -43,16 +45,22 @@ impl DomainName {
                 _ => break,
             }
         }
-        let name = DomainName {
+        let mut name = DomainName {
             start: at,
             end: end,
+            total_bytes: 0,
         };
 
         // Check if the value here is parsable.
-        if let Some(_) = name.segments(message) {
+        if let Some(segments) = name.segments(message) {
+            name.total_bytes = segments.iter().fold(0, |a, &s| a + s.len() + 1);
             return Some(name);
         }
         None
+    }
+
+    pub fn max_encoding_size(&self) -> usize {
+        self.total_bytes
     }
 
     pub fn segments<'d, D: 'd + ?Sized + BitData>(&self,

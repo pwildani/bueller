@@ -10,9 +10,9 @@ pub type Name = Vec<Vec<u8>>;
 
 #[derive(Clone, Debug)]
 pub struct CacheResource {
-    data: Option<Vec<u8>>,
-    absolute_ttl: time_t,
-    rcode: u16,
+    pub data: Option<Vec<u8>>,
+    pub absolute_ttl: time_t,
+    pub rcode: u16,
 }
 
 #[derive(Clone, Debug)]
@@ -23,7 +23,7 @@ pub struct CacheRecord {
 }
 
 impl CacheRecord {
-    fn new(name: Name) -> CacheRecord {
+    pub fn new(name: Name) -> CacheRecord {
         CacheRecord {
             name: name,
             resources: BTreeMap::new(),

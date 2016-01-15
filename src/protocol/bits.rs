@@ -1,16 +1,18 @@
 use std::ops::{Index, IndexMut, Range};
 
-
-pub trait BitData {
-    type Slice: ?Sized + Index<usize,Output=u8>;
-
-    fn get(&self, index: usize) -> Option<&u8>;
-    fn get_range(&self, index: Range<usize>) -> Option<&Self::Slice>;
+pub trait HasLength {
     fn len(&self) -> usize;
 }
 
+pub trait BitData : HasLength {
+    type Slice: ?Sized + Index<usize,Output=u8> + HasLength;
+
+    fn get(&self, index: usize) -> Option<&u8>;
+    fn get_range(&self, index: Range<usize>) -> Option<&Self::Slice>;
+}
+
 pub trait BitDataMut: BitData {
-    type SliceMut: ?Sized + IndexMut<usize,Output=u8>;
+    type SliceMut: ?Sized + IndexMut<usize,Output=u8> + HasLength;
 
     fn get_mut(&mut self, index: usize) -> Option<&mut u8>;
     fn get_mut_range(&mut self, index: Range<usize>) -> Option<&mut Self::SliceMut>;
@@ -30,7 +32,9 @@ impl BitData for [u8] {
         }
         Some(&self[index])
     }
+}
 
+impl HasLength for [u8] {
     #[inline]
     fn len(&self) -> usize {
         (self as &[u8]).len()
@@ -71,7 +75,9 @@ impl BitData for Vec<u8> {
         }
         Some(&self[index])
     }
+}
 
+impl HasLength for Vec<u8> {
     #[inline]
     fn len(&self) -> usize {
         (self as &[u8]).len()

@@ -7,7 +7,7 @@
 /// query constructor does not take the more natural `Vec<Vec<u8>>` to represent the name because
 /// passing each segment as a slice allows it to copy the bytes directly out of their source
 /// location if they are already encoded and do not need to go through this library.
-/// 
+///
 /// # Examples
 ///
 /// ```
@@ -16,7 +16,7 @@
 ///   let encoded_name = encode_dotted_name(&name).unwrap();
 ///   let query_name = vec_ref(&encoded_name);
 /// ```
-/// 
+///
 use std::vec::Vec;
 
 fn encode_segment(segment: &str) -> Option<Vec<u8>> {

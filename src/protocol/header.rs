@@ -47,7 +47,7 @@ const AN: BEU16Field = BEU16Field { index: 6 };
 const NS: BEU16Field = BEU16Field { index: 8 };
 const AR: BEU16Field = BEU16Field { index: 10 };
 
-const SIZE: usize = 12;
+pub const SIZE: usize = 12;
 
 pub const RC_OK: u8 = 0;
 pub const RC_FORMAT_ERROR: u8 = 1;

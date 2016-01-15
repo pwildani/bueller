@@ -5,11 +5,27 @@ use super::domain_name::DomainName;
 use super::message::MessageCursor;
 use std::ops::Range;
 
-const TYPE: BEU16Field = BEU16Field { index: 0 };
-const CLASS: BEU16Field = BEU16Field { index: 2 };
-const SIZE: usize = 4;
+pub const TYPE: BEU16Field = BEU16Field { index: 0 };
+pub const CLASS: BEU16Field = BEU16Field { index: 2 };
+pub const SIZE: usize = 4;
 
+pub const QTYPE_A: u16 = 1;
+pub const QTYPE_NS: u16 = 2;
 
+pub const QTYPE_MD: u16 = 3;
+pub const QTYPE_MF: u16 = 4;
+pub const QTYPE_CNAME: u16 = 5;
+pub const QTYPE_SOA: u16 = 6;
+pub const QTYPE_MB: u16 = 7;
+pub const QTYPE_MG: u16 = 8;
+pub const QTYPE_MR: u16 = 9;
+pub const QTYPE_NULL: u16 = 10;
+pub const QTYPE_WKS: u16 = 11;
+pub const QTYPE_PTR: u16 = 12;
+pub const QTYPE_HINFO: u16 = 13;
+pub const QTYPE_MINFO: u16 = 14;
+pub const QTYPE_MX: u16 = 15;
+pub const QTYPE_TXT: u16 = 16;
 
 #[derive(Clone)]
 pub struct Question<'d> {
@@ -46,6 +62,28 @@ impl<'d> Question<'d> {
 
     pub fn end_offset(&self) -> usize {
         self.name.end_offset() + SIZE
+    }
+
+    pub fn estimate_response_size(&self) -> usize {
+        self.name.max_encoding_size() + SIZE +
+        match self.qtype() {
+            Some(QTYPE_A) => 4,
+            Some(QTYPE_NS) => 64,
+            Some(QTYPE_MD) => 64,
+            Some(QTYPE_MF) => 64,
+            Some(QTYPE_CNAME) => 64,
+            Some(QTYPE_SOA) => 64,
+            Some(QTYPE_MB) => 64,
+            Some(QTYPE_MR) => 64,
+            Some(QTYPE_NULL) => 128,
+            Some(QTYPE_WKS) => 128,
+            Some(QTYPE_PTR) => 64,
+            Some(QTYPE_HINFO) => 128,
+            Some(QTYPE_MINFO) => 128,
+            Some(QTYPE_MX) => 128,
+            Some(QTYPE_TXT) => 512,
+            _ => 128,
+        }
     }
 }
 
