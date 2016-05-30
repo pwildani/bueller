@@ -1,33 +1,34 @@
 extern crate bueller;
 extern crate mio;
 extern crate time;
-
+extern crate slab;
 
 use std::collections::BinaryHeap;
-use time::now;
 use time::Duration;
-use bueller::protocol;
-use bueller::server::CacheRecord;
-use bueller::server::cache_record::CacheResource;
-use bueller::server::time::{time_t, TIME_T_MAX};
-use bueller::protocol::{Header, HeaderMut};
+use time::now;
+use mio::udp::UdpSocket;
+use slab::Slab;
+use std::collections::HashMap;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Read;
+use std::io;
+use std::iter;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
+use std::net::SocketAddrV4;
+use std::sync::Arc;
+
 use bueller::protocol::MessageCursor;
 use bueller::protocol::Resource;
 use bueller::protocol::question;
+use bueller::protocol::{Header, HeaderMut};
 use bueller::protocol::{Question, QuestionMut};
+use bueller::protocol;
 use bueller::rfc4390::{encode_dotted_name, vec_ref};
-use mio::udp::UdpSocket;
-use mio::util::Slab;
-use std::io::Read;
-use std::io;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::iter;
-use std::net::SocketAddr;
-use std::net::SocketAddrV4;
-use std::net::Ipv4Addr;
-use std::sync::Arc;
-use std::collections::HashMap;
+use bueller::server::CacheRecord;
+use bueller::server::cache_record::CacheResource;
+use bueller::server::time::{time_t, TIME_T_MAX};
 
 const UDP: mio::Token = mio::Token(0);
 const LOCAL_LOOKUP: mio::Token = mio::Token(1);
@@ -246,7 +247,7 @@ impl UdpServer {
     fn read_message(&mut self) -> io::Result<(SocketAddr, Vec<u8>)> {
         // TODO self.config.max_packet_size
         let mut buf = Vec::with_capacity(1024);
-        if let Some(addr) = try!(self.server.recv_from(&mut buf)) {
+        if let Some((size, addr)) = try!(self.server.recv_from(&mut buf)) {
             return Ok((addr, buf));
         }
         Err(Error::new(ErrorKind::WouldBlock, "Would block"))

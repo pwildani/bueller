@@ -21,7 +21,8 @@ use std::vec::Vec;
 
 fn encode_segment(segment: &str) -> Option<Vec<u8>> {
     use std::ascii::AsciiExt;
-    use url::punycode;
+    extern crate url;
+    use url::idna::punycode;
 
     if segment.is_ascii() {
         return Some(segment.into());
