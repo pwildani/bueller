@@ -3,6 +3,7 @@ extern crate mio;
 extern crate time;
 extern crate slab;
 
+use std::result::Result;
 use std::collections::BinaryHeap;
 use time::Duration;
 use time::now;
@@ -23,6 +24,7 @@ use bueller::protocol::MessageCursor;
 use bueller::protocol::Resource;
 use bueller::protocol::question;
 use bueller::protocol::{Header, HeaderMut};
+use bueller::protocol::header;
 use bueller::protocol::{Question, QuestionMut};
 use bueller::protocol;
 use bueller::rfc4390::{encode_dotted_name, vec_ref};
@@ -135,6 +137,15 @@ impl Response {
             response_cursor: response_cursor,
             response: response,
         }
+    }
+
+    pub fn compose(&mut self) -> &[u8] {
+        return &self.response[0..self.response_cursor.tell()]
+    }
+
+
+    pub fn header_mut<'a>(&'a mut self) -> HeaderMut<'a, Vec<u8>> {
+        HeaderMut::at(&mut self.response_cursor, &mut self.response).unwrap()
     }
 
     fn estimate_response_size(message: &Vec<u8>) -> usize {
@@ -281,12 +292,28 @@ impl UdpServer {
     fn update_session_or_drop(&mut self, from: SessionId, message: Vec<u8>) {
         // Non query message.
         // See if it matches an in-progress session, and update the match with the new data if so.
+
     }
 
-    fn send_client_error_reply(&mut self, from: SessionId, message: Vec<u8>) {
+    fn send_client_error_reply(&mut self, to: SessionId, message: Vec<u8>) 
+            -> io::Result<Option<usize>> {
+        let mut response = Response::for_message(&message);
+        response.header_mut().set_rc(header::RC_FORMAT_ERROR);
+        self.send_response(&mut response, to)
     }
 
-    fn send_server_error_reply(&mut self, from: SessionId, message: Vec<u8>) {
+    fn send_server_error_reply(&mut self, to: SessionId, message: Vec<u8>)
+            -> io::Result<Option<usize>> {
+        let mut response = Response::for_message(&message);
+        response.header_mut().set_rc(header::RC_SERVER_ERROR);
+        self.send_response(&mut response, to)
+    }
+
+    fn send_response(&mut self, response: &mut Response, to: SessionId) -> io::Result<Option<usize>> {
+        match to {
+            SessionId::UdpId(ref addr, _) => self.server.send_to(response.compose(), addr),
+            // _ => Err(io::Error::new(io::ErrorKind::Other, "UDP only"))
+        }
     }
 }
 
