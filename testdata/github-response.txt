@@ -1,0 +1,26 @@
+[
+HEADER
+1, 0, 128, 128,
+  ID = 0x0001 QR = 1 Opcode = 0 AA = 0 TC = 0 RD = 0 RA = 1 Z = 0 RCODE = 0 
+0, 1, 0, 1, 0, 0, 0, 0,
+  QDCOUNT = 1 ANCOUNT = 1 NSCOUNT = 0 ARCOUNT = 0 
+
+QUESTION
+6, 103, 105, 116, 104, 117, 98, 3, 99, 111, 109, 0,
+  DOMAIN NAME "github", "com"
+0, 1, 0, 1,
+  QTYPE = 1 QCLASS = 1
+
+ANSWER
+192, 12,
+  DOMAIN NAME: PTR = 12 -> "github", "com"
+0, 1, 0, 1,
+  TYPE = A  CLASS = IN
+0, 0, 0, 1,
+  TTL = 1
+0, 4,
+  RDLENGTH = 4
+  RDATA:A
+  192, 30, 252, 130]
+
+

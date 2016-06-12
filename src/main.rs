@@ -259,6 +259,7 @@ impl UdpServer {
         // TODO self.config.max_packet_size
         let mut buf = Vec::with_capacity(1024);
         if let Some((size, addr)) = try!(self.server.recv_from(&mut buf)) {
+            buf.truncate(size);
             return Ok((addr, buf));
         }
         Err(Error::new(ErrorKind::WouldBlock, "Would block"))
@@ -287,6 +288,8 @@ impl UdpServer {
         }
         let session = Session::new_for_message(from.clone(), message);
         self.sessions.insert(from, session);
+
+        self.enqueue_queries(from, message);
     }
 
     fn update_session_or_drop(&mut self, from: SessionId, message: Vec<u8>) {
